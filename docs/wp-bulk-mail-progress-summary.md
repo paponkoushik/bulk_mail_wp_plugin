@@ -89,13 +89,6 @@
 - Plugin data is stored in the same WordPress database, not in a separate database.
 - Active plugin-related tables now include `wp_bulk_mail_recipients`, `wp_bulk_mail_campaigns`, `wp_bulk_mail_campaign_recipients`, `wp_bulk_mail_queue`, `wp_bulk_mail_import_jobs`, and `wp_bulk_mail_templates`.
 
-## Git and Repository Summary
-
-- Initialized a dedicated Git repository inside the `wp-bulk-mail` plugin folder.
-- Created 20 logical commits to reflect the feature build history.
-- Added the GitHub remote repository.
-- Pushed the `main` branch successfully to GitHub.
-
 ## Important Current Notes
 
 - Bounce and spam reporting are estimated from failure message classification until provider webhooks or APIs are integrated.
