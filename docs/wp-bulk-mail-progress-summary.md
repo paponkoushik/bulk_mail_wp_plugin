@@ -4,8 +4,6 @@
 - Plugin version: 0.6.0
 - Local plugin path: `c:\xampp\htdocs\wp-mail\wp-content\plugins\wp-bulk-mail`
 - GitHub repository: `git@github.com:paponkoushik/bulk_mail_wp_plugin.git`
-- Git branch: `main`
-- Local commit history created: 20 commits
 
 ## Project Scope
 
