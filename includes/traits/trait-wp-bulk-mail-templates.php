@@ -81,6 +81,10 @@ trait WP_Bulk_Mail_Templates_Trait {
 				'token'       => '{{site_url}}',
 				'description' => __( 'Your site URL.', 'wp-bulk-mail' ),
 			),
+			array(
+				'token'       => '{{unsubscribe_url}}',
+				'description' => __( 'A public unsubscribe link unique to the recipient.', 'wp-bulk-mail' ),
+			),
 		);
 	}
 

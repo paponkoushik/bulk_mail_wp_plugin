@@ -261,7 +261,7 @@ trait WP_Bulk_Mail_Dashboard_Trait {
 
 				$stats['total_campaigns'] += $total;
 
-				if ( in_array( $status, array( 'queued', 'processing' ), true ) ) {
+				if ( in_array( $status, array( 'queued', 'processing', 'scheduled' ), true ) ) {
 					$stats['active_campaigns'] += $total;
 				}
 

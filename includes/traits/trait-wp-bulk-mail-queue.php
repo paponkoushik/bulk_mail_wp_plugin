@@ -7,6 +7,30 @@ if ( ! defined( 'ABSPATH' ) ) {
 trait WP_Bulk_Mail_Queue_Trait {
 
 	/**
+	 * Convert one stored local datetime string into a UTC timestamp.
+	 *
+	 * @param string $datetime Local datetime string.
+	 * @return int
+	 */
+	private function get_local_datetime_timestamp( $datetime ) {
+		$datetime = (string) $datetime;
+
+		if ( '' === $datetime || '0000-00-00 00:00:00' === $datetime ) {
+			return 0;
+		}
+
+		$gmt_datetime = get_gmt_from_date( $datetime );
+
+		if ( empty( $gmt_datetime ) ) {
+			return 0;
+		}
+
+		$timestamp = strtotime( $gmt_datetime . ' UTC' );
+
+		return false === $timestamp ? 0 : (int) $timestamp;
+	}
+
+	/**
 	 * Check if a storage table exists.
 	 *
 	 * @param string $table_name Table name.
@@ -98,9 +122,9 @@ trait WP_Bulk_Mail_Queue_Trait {
 			return 0;
 		}
 
-		$next_timestamp = strtotime( get_gmt_from_date( $next_scheduled ) . ' UTC' );
+		$next_timestamp = $this->get_local_datetime_timestamp( $next_scheduled );
 
-		if ( false === $next_timestamp ) {
+		if ( $next_timestamp < 1 ) {
 			return 0;
 		}
 
@@ -123,6 +147,42 @@ trait WP_Bulk_Mail_Queue_Trait {
 		}
 
 		return false !== wp_next_scheduled( $hook );
+	}
+
+	/**
+	 * Get the next scheduled Unix timestamp for one background action.
+	 *
+	 * @param string $hook Action hook name.
+	 * @return int|false
+	 */
+	private function get_background_action_timestamp( $hook ) {
+		if ( $this->is_action_scheduler_available() ) {
+			$timestamp = as_next_scheduled_action( $hook, array(), self::QUEUE_ACTION_GROUP );
+
+			return false === $timestamp ? false : (int) $timestamp;
+		}
+
+		$timestamp = wp_next_scheduled( $hook );
+
+		return false === $timestamp ? false : (int) $timestamp;
+	}
+
+	/**
+	 * Remove any scheduled instances for one background action.
+	 *
+	 * @param string $hook Action hook name.
+	 * @return void
+	 */
+	private function clear_background_action_schedule( $hook ) {
+		if ( $this->is_action_scheduler_available() ) {
+			if ( function_exists( 'as_unschedule_all_actions' ) ) {
+				as_unschedule_all_actions( $hook, array(), self::QUEUE_ACTION_GROUP );
+			}
+
+			return;
+		}
+
+		wp_clear_scheduled_hook( $hook );
 	}
 
 	/**
@@ -157,16 +217,39 @@ trait WP_Bulk_Mail_Queue_Trait {
 	}
 
 	/**
+	 * Ensure the next scheduled action is not later than required.
+	 *
+	 * @param string $hook Action hook name.
+	 * @param int    $delay Delay in seconds.
+	 * @return void
+	 */
+	private function ensure_background_action_schedule( $hook, $delay = 0 ) {
+		$delay               = max( 0, absint( $delay ) );
+		$desired_timestamp   = time() + $delay;
+		$scheduled_timestamp = $this->get_background_action_timestamp( $hook );
+
+		if ( false === $scheduled_timestamp ) {
+			$this->schedule_background_action( $hook, $delay );
+			return;
+		}
+
+		if ( $scheduled_timestamp > ( $desired_timestamp + 60 ) ) {
+			$this->clear_background_action_schedule( $hook );
+			$this->schedule_background_action( $hook, $delay );
+		}
+	}
+
+	/**
 	 * Ensure the queue runner is scheduled when unfinished work exists.
 	 *
 	 * @return void
 	 */
 	public function maybe_schedule_queue_processing() {
-		if ( ! $this->has_open_queue_items() || $this->is_background_action_scheduled( self::QUEUE_PROCESS_HOOK ) ) {
+		if ( ! $this->has_open_queue_items() ) {
 			return;
 		}
 
-		$this->schedule_background_action( self::QUEUE_PROCESS_HOOK, $this->get_next_queue_delay() );
+		$this->ensure_background_action_schedule( self::QUEUE_PROCESS_HOOK, $this->get_next_queue_delay() );
 	}
 
 	/**
@@ -201,7 +284,7 @@ trait WP_Bulk_Mail_Queue_Trait {
 
 		if ( $this->table_exists( $campaigns_table ) ) {
 			$latest_campaign = $wpdb->get_row(
-				"SELECT id, name, subject, status, total_recipients, pending_count, sent_count, failed_count, created_at, updated_at
+				"SELECT id, name, subject, status, send_type, scheduled_at, total_recipients, pending_count, sent_count, failed_count, created_at, updated_at
 				FROM {$campaigns_table}
 				WHERE status != 'draft'
 				ORDER BY id DESC
@@ -231,11 +314,14 @@ trait WP_Bulk_Mail_Queue_Trait {
 		self::create_campaigns_table();
 		self::create_queue_table();
 
-		$campaign_id    = absint( $campaign_id );
-		$campaign       = $this->get_campaign_by_id( $campaign_id );
+		$campaign_id     = absint( $campaign_id );
+		$campaign        = $this->get_campaign_by_id( $campaign_id );
 		$campaigns_table = self::get_campaigns_table_name();
-		$queue_table    = self::get_queue_table_name();
+		$queue_table     = self::get_queue_table_name();
 		$recipient_count = count( $selected_recipients );
+		$scheduled_at    = is_array( $campaign ) && ! empty( $campaign['scheduled_at'] ) ? $campaign['scheduled_at'] : current_time( 'mysql' );
+		$send_type       = is_array( $campaign ) && ! empty( $campaign['send_type'] ) ? $campaign['send_type'] : 'immediate';
+		$is_scheduled    = 'scheduled' === $send_type && $this->get_local_datetime_timestamp( $scheduled_at ) > time();
 
 		if ( $campaign_id < 1 || ! is_array( $campaign ) ) {
 			return new WP_Error( 'missing_campaign', __( 'Campaign was not found.', 'wp-bulk-mail' ) );
@@ -251,7 +337,7 @@ trait WP_Bulk_Mail_Queue_Trait {
 			$campaigns_table,
 			array(
 				'driver'           => $this->get_current_driver()->get_id(),
-				'status'           => 'queued',
+				'status'           => $is_scheduled ? 'scheduled' : 'queued',
 				'total_recipients' => $recipient_count,
 				'pending_count'    => $recipient_count,
 				'sent_count'       => 0,
@@ -275,7 +361,7 @@ trait WP_Bulk_Mail_Queue_Trait {
 					'recipient_name'  => $recipient['name'],
 					'status'          => 'pending',
 					'attempts'        => 0,
-					'scheduled_at'    => current_time( 'mysql' ),
+					'scheduled_at'    => $scheduled_at,
 				),
 				array( '%d', '%d', '%s', '%s', '%s', '%d', '%s' )
 			);
@@ -315,7 +401,7 @@ trait WP_Bulk_Mail_Queue_Trait {
 		}
 
 		$this->update_campaign_statuses( array( $campaign_id ) );
-		$this->schedule_background_action( self::QUEUE_PROCESS_HOOK );
+		$this->maybe_schedule_queue_processing();
 
 		return array(
 			'campaign_id'   => $campaign_id,
@@ -389,6 +475,13 @@ trait WP_Bulk_Mail_Queue_Trait {
 			'{{recipient_email}}' => isset( $queue_item['recipient_email'] ) ? $queue_item['recipient_email'] : '',
 			'{{site_name}}'       => get_bloginfo( 'name' ),
 			'{{site_url}}'        => home_url( '/' ),
+			'{{unsubscribe_url}}' => $this->get_recipient_unsubscribe_url(
+				array(
+					'id'                => isset( $queue_item['recipient_id'] ) ? (int) $queue_item['recipient_id'] : 0,
+					'email'             => isset( $queue_item['recipient_email'] ) ? $queue_item['recipient_email'] : '',
+					'unsubscribe_token' => isset( $queue_item['unsubscribe_token'] ) ? $queue_item['unsubscribe_token'] : '',
+				)
+			),
 		);
 
 		return strtr( (string) $content, $replacements );
@@ -408,7 +501,7 @@ trait WP_Bulk_Mail_Queue_Trait {
 			return;
 		}
 
-		$cutoff = gmdate( 'Y-m-d H:i:s', current_time( 'timestamp' ) - self::QUEUE_STALE_LOCK_AGE );
+		$cutoff = wp_date( 'Y-m-d H:i:s', time() - self::QUEUE_STALE_LOCK_AGE );
 
 		$wpdb->query(
 			$wpdb->prepare(
@@ -472,9 +565,10 @@ trait WP_Bulk_Mail_Queue_Trait {
 
 		return $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT q.id, q.campaign_id, q.recipient_id, q.recipient_email, q.recipient_name, q.attempts, c.subject, c.body
+				"SELECT q.id, q.campaign_id, q.recipient_id, q.recipient_email, q.recipient_name, q.attempts, c.subject, c.body, r.unsubscribe_token
 				FROM {$queue_table} q
 				INNER JOIN {$campaigns_table} c ON c.id = q.campaign_id
+				LEFT JOIN " . self::get_recipients_table_name() . " r ON r.id = q.recipient_id
 				WHERE q.status = %s AND q.locked_at = %s AND q.id IN ({$placeholders})
 				ORDER BY q.id ASC",
 				$select_args
@@ -496,6 +590,32 @@ trait WP_Bulk_Mail_Queue_Trait {
 		$attempts    = isset( $queue_item['attempts'] ) ? (int) $queue_item['attempts'] + 1 : 1;
 		$headers     = array( 'Content-Type: text/html; charset=UTF-8' );
 		$queued_body = isset( $queue_item['body'] ) ? $queue_item['body'] : '';
+
+		if ( ! empty( $queue_item['recipient_id'] ) ) {
+			$recipient_status = $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT status FROM " . self::get_recipients_table_name() . " WHERE id = %d LIMIT 1",
+					(int) $queue_item['recipient_id']
+				)
+			);
+
+			if ( 'unsubscribed' === $recipient_status ) {
+				$wpdb->update(
+					$table_name,
+					array(
+						'status'        => 'failed',
+						'attempts'      => $attempts,
+						'locked_at'     => null,
+						'error_message' => __( 'Recipient unsubscribed before this message was sent.', 'wp-bulk-mail' ),
+					),
+					array( 'id' => (int) $queue_item['id'] ),
+					array( '%s', '%d', '%s', '%s' ),
+					array( '%d' )
+				);
+
+				return;
+			}
+		}
 
 		$this->last_mail_error_message = '';
 		$subject = $this->replace_template_tokens( isset( $queue_item['subject'] ) ? $queue_item['subject'] : '', $queue_item );
@@ -537,7 +657,7 @@ trait WP_Bulk_Mail_Queue_Trait {
 		$formats       = array( '%s', '%d', '%s', '%s' );
 
 		if ( 'pending' === $next_status ) {
-			$update_data['scheduled_at'] = gmdate( 'Y-m-d H:i:s', current_time( 'timestamp' ) + ( self::QUEUE_RETRY_DELAY * $attempts ) );
+			$update_data['scheduled_at'] = wp_date( 'Y-m-d H:i:s', time() + ( self::QUEUE_RETRY_DELAY * $attempts ) );
 			$formats[]                   = '%s';
 		}
 
@@ -604,11 +724,24 @@ trait WP_Bulk_Mail_Queue_Trait {
 			$sent_count       = (int) $counts['sent_count'];
 			$failed_count     = (int) $counts['failed_count'];
 			$status           = 'queued';
+			$next_pending_at  = $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT MIN(scheduled_at) FROM {$queue_table} WHERE campaign_id = %d AND status = %s",
+					$campaign_id,
+					'pending'
+				)
+			);
 
 			if ( $total_count > 0 && $sent_count >= $total_count ) {
 				$status = 'completed';
 			} elseif ( $processing_count > 0 || $pending_count > 0 ) {
-				$status = ( $sent_count > 0 || $failed_count > 0 || $processing_count > 0 ) ? 'processing' : 'queued';
+				if ( $processing_count > 0 || $sent_count > 0 || $failed_count > 0 ) {
+					$status = 'processing';
+				} elseif ( ! empty( $next_pending_at ) && $this->get_local_datetime_timestamp( $next_pending_at ) > time() ) {
+					$status = 'scheduled';
+				} else {
+					$status = 'queued';
+				}
 			} elseif ( $total_count > 0 && $failed_count >= $total_count ) {
 				$status = 'failed';
 			} elseif ( $sent_count > 0 || $failed_count > 0 ) {
@@ -643,6 +776,10 @@ trait WP_Bulk_Mail_Queue_Trait {
 		$queue_items = $this->claim_queue_batch( self::QUEUE_BATCH_SIZE );
 
 		if ( empty( $queue_items ) ) {
+			if ( $this->has_open_queue_items() ) {
+				$this->ensure_background_action_schedule( self::QUEUE_PROCESS_HOOK, $this->get_next_queue_delay() );
+			}
+
 			return;
 		}
 
@@ -655,8 +792,8 @@ trait WP_Bulk_Mail_Queue_Trait {
 
 		$this->update_campaign_statuses( $campaign_ids );
 
-		if ( $this->has_open_queue_items() && ! $this->is_background_action_scheduled( self::QUEUE_PROCESS_HOOK ) ) {
-			$this->schedule_background_action( self::QUEUE_PROCESS_HOOK, $this->get_next_queue_delay() );
+		if ( $this->has_open_queue_items() ) {
+			$this->ensure_background_action_schedule( self::QUEUE_PROCESS_HOOK, $this->get_next_queue_delay() );
 		}
 	}
 }

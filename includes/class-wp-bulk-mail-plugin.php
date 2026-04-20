@@ -15,6 +15,7 @@ class WP_Bulk_Mail_Plugin {
 	use WP_Bulk_Mail_Compose_Trait;
 	use WP_Bulk_Mail_Templates_Trait;
 	use WP_Bulk_Mail_Campaigns_Trait;
+	use WP_Bulk_Mail_Monitor_Trait;
 
 	const OPTION_KEY             = 'wp_bulk_mail_mailer_settings';
 	const COMPOSE_OPTION_KEY     = 'wp_bulk_mail_compose_draft';
@@ -25,6 +26,7 @@ class WP_Bulk_Mail_Plugin {
 	const COMPOSE_MENU_SLUG      = 'wp-bulk-mail-compose';
 	const RECIPIENTS_MENU_SLUG   = 'wp-bulk-mail-recipients';
 	const TEMPLATES_MENU_SLUG    = 'wp-bulk-mail-templates';
+	const MONITOR_MENU_SLUG      = 'wp-bulk-mail-monitor';
 	const RECIPIENTS_PER_PAGE    = 20;
 	const QUEUE_PROCESS_HOOK     = 'wp_bulk_mail_process_queue';
 	const QUEUE_ACTION_GROUP     = 'wp-bulk-mail';
@@ -138,10 +140,14 @@ class WP_Bulk_Mail_Plugin {
 		add_action( 'admin_post_wp_bulk_mail_save_template', array( $this, 'handle_save_template' ) );
 		add_action( 'admin_post_wp_bulk_mail_delete_template', array( $this, 'handle_delete_template' ) );
 		add_action( 'admin_post_wp_bulk_mail_save_campaign', array( $this, 'handle_save_campaign' ) );
+		add_action( 'admin_post_wp_bulk_mail_retry_failed_item', array( $this, 'handle_retry_failed_item' ) );
+		add_action( 'admin_post_wp_bulk_mail_retry_failed_campaign', array( $this, 'handle_retry_failed_campaign' ) );
+		add_action( 'admin_post_wp_bulk_mail_retry_all_failed', array( $this, 'handle_retry_all_failed' ) );
 		add_action( self::QUEUE_PROCESS_HOOK, array( $this, 'process_mail_queue' ) );
 		add_action( self::IMPORT_PROCESS_HOOK, array( $this, 'process_import_jobs' ) );
 		add_action( 'phpmailer_init', array( $this, 'configure_phpmailer' ) );
 		add_action( 'wp_mail_failed', array( $this, 'capture_mail_failure' ) );
+		add_action( 'template_redirect', array( $this, 'maybe_handle_unsubscribe_request' ) );
 
 		add_filter( 'wp_mail_from', array( $this, 'filter_mail_from' ) );
 		add_filter( 'wp_mail_from_name', array( $this, 'filter_mail_from_name' ) );

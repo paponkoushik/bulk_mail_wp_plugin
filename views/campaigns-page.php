@@ -38,7 +38,7 @@ $completed_campaign_count = 0;
 foreach ( $stored_campaigns as $stored_campaign ) {
 	if ( 'completed' === $stored_campaign['status'] ) {
 		++$completed_campaign_count;
-	} elseif ( in_array( $stored_campaign['status'], array( 'queued', 'processing', 'pending' ), true ) ) {
+	} elseif ( in_array( $stored_campaign['status'], array( 'queued', 'processing', 'pending', 'scheduled' ), true ) ) {
 		++$queued_campaign_count;
 	}
 }
@@ -416,6 +416,22 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 								<p class="description wp-bulk-mail-template-note"><?php esc_html_e( 'Choosing a template can replace the current subject and body with the template content.', 'wp-bulk-mail' ); ?></p>
 							</td>
 						</tr>
+						<tr>
+							<th scope="row">
+								<label for="wp-bulk-mail-campaign-segment-tag"><?php esc_html_e( 'Segment Tag', 'wp-bulk-mail' ); ?></label>
+							</th>
+							<td>
+								<select id="wp-bulk-mail-campaign-segment-tag" name="wp_bulk_mail_campaign_segment_tag">
+									<option value=""><?php esc_html_e( 'No auto segment', 'wp-bulk-mail' ); ?></option>
+									<?php foreach ( $available_tags as $available_tag ) : ?>
+										<option value="<?php echo esc_attr( $available_tag ); ?>" <?php selected( $campaign_form_data['segment_tag'], $available_tag ); ?>>
+											<?php echo esc_html( $available_tag ); ?>
+										</option>
+									<?php endforeach; ?>
+								</select>
+								<p class="description wp-bulk-mail-template-note"><?php esc_html_e( 'When selected, every active recipient with this tag is included together with the manual selection above.', 'wp-bulk-mail' ); ?></p>
+							</td>
+						</tr>
 					</tbody>
 				</table>
 			</div>
@@ -511,6 +527,34 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 			</div>
 
 			<div class="card" style="max-width:none; padding:16px 20px; margin-bottom:20px;">
+				<h3><?php esc_html_e( 'Schedule', 'wp-bulk-mail' ); ?></h3>
+				<table class="form-table" role="presentation">
+					<tbody>
+						<tr>
+							<th scope="row">
+								<label for="wp-bulk-mail-campaign-send-type"><?php esc_html_e( 'Send Mode', 'wp-bulk-mail' ); ?></label>
+							</th>
+							<td>
+								<select id="wp-bulk-mail-campaign-send-type" name="wp_bulk_mail_campaign_send_type">
+									<option value="immediate" <?php selected( $campaign_form_data['send_type'], 'immediate' ); ?>><?php esc_html_e( 'Queue immediately', 'wp-bulk-mail' ); ?></option>
+									<option value="scheduled" <?php selected( $campaign_form_data['send_type'], 'scheduled' ); ?>><?php esc_html_e( 'Schedule for later', 'wp-bulk-mail' ); ?></option>
+								</select>
+							</td>
+						</tr>
+						<tr id="wp-bulk-mail-campaign-schedule-row" <?php echo 'scheduled' === $campaign_form_data['send_type'] ? '' : 'style="display:none;"'; ?>>
+							<th scope="row">
+								<label for="wp-bulk-mail-campaign-scheduled-at"><?php esc_html_e( 'Send At', 'wp-bulk-mail' ); ?></label>
+							</th>
+							<td>
+								<input type="datetime-local" id="wp-bulk-mail-campaign-scheduled-at" name="wp_bulk_mail_campaign_scheduled_at" value="<?php echo esc_attr( $campaign_form_data['scheduled_at'] ); ?>" />
+								<p class="description"><?php esc_html_e( 'Use your site timezone when choosing the scheduled send time.', 'wp-bulk-mail' ); ?></p>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+
+			<div class="card" style="max-width:none; padding:16px 20px; margin-bottom:20px;">
 				<h3><?php esc_html_e( 'Campaign Builder', 'wp-bulk-mail' ); ?></h3>
 				<p class="description">
 					<?php esc_html_e( 'Write the email once here. Template placeholders will be replaced per recipient when the campaign is sent.', 'wp-bulk-mail' ); ?>
@@ -568,8 +612,10 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 					<tr>
 						<th><?php esc_html_e( 'Campaign', 'wp-bulk-mail' ); ?></th>
 						<th><?php esc_html_e( 'Template', 'wp-bulk-mail' ); ?></th>
+						<th><?php esc_html_e( 'Segment', 'wp-bulk-mail' ); ?></th>
 						<th><?php esc_html_e( 'Recipients', 'wp-bulk-mail' ); ?></th>
 						<th><?php esc_html_e( 'Status', 'wp-bulk-mail' ); ?></th>
+						<th><?php esc_html_e( 'Schedule', 'wp-bulk-mail' ); ?></th>
 						<th><?php esc_html_e( 'Updated', 'wp-bulk-mail' ); ?></th>
 						<th><?php esc_html_e( 'Action', 'wp-bulk-mail' ); ?></th>
 					</tr>
@@ -581,7 +627,7 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 
 						if ( 'completed' === $campaign['status'] ) {
 							$status_class = 'is-success';
-						} elseif ( in_array( $campaign['status'], array( 'queued', 'processing', 'pending' ), true ) ) {
+						} elseif ( in_array( $campaign['status'], array( 'queued', 'processing', 'pending', 'scheduled' ), true ) ) {
 							$status_class = 'is-accent';
 						} elseif ( 'failed' === $campaign['status'] ) {
 							$status_class = 'is-danger';
@@ -595,6 +641,7 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 								<?php endif; ?>
 							</td>
 							<td><?php echo esc_html( ! empty( $campaign['template_name'] ) ? $campaign['template_name'] : __( 'Custom', 'wp-bulk-mail' ) ); ?></td>
+							<td><?php echo esc_html( ! empty( $campaign['segment_tag'] ) ? $campaign['segment_tag'] : __( 'Manual', 'wp-bulk-mail' ) ); ?></td>
 							<td>
 								<?php
 								echo esc_html(
@@ -609,6 +656,15 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 								?>
 							</td>
 							<td><span class="wp-bulk-mail-admin-badge <?php echo esc_attr( $status_class ); ?>"><?php echo esc_html( ucfirst( (string) $campaign['status'] ) ); ?></span></td>
+							<td>
+								<?php
+								echo esc_html(
+									'scheduled' === $campaign['send_type'] && ! empty( $campaign['scheduled_at'] ) && '0000-00-00 00:00:00' !== $campaign['scheduled_at']
+										? mysql2date( 'Y-m-d H:i', $campaign['scheduled_at'] )
+										: ( 'scheduled' === $campaign['send_type'] ? __( 'Not queued yet', 'wp-bulk-mail' ) : __( 'Immediate', 'wp-bulk-mail' ) )
+								);
+								?>
+							</td>
 							<td><?php echo esc_html( mysql2date( 'Y-m-d H:i', $campaign['updated_at'] ) ); ?></td>
 							<td>
 								<a href="<?php echo esc_url( $plugin->get_campaigns_page_url( array( 'edit_campaign' => (int) $campaign['id'] ) ) ); ?>">
@@ -639,6 +695,8 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 		var emptyState = document.getElementById('wp-bulk-mail-campaign-recipient-empty');
 		var templateSelect = document.getElementById('wp-bulk-mail-campaign-template-id');
 		var subjectInput = document.getElementById('wp-bulk-mail-campaign-subject');
+		var sendTypeSelect = document.getElementById('wp-bulk-mail-campaign-send-type');
+		var scheduleRow = document.getElementById('wp-bulk-mail-campaign-schedule-row');
 		var templateMap = <?php echo wp_json_encode( $template_payload ); ?>;
 		var optionRows = picker ? Array.prototype.slice.call(picker.querySelectorAll('[data-recipient-option]')) : [];
 		var recipientCheckboxes = optionRows.map(function (row) {
@@ -699,6 +757,15 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 				subjectInput.value = selectedTemplate.subject || '';
 				setCampaignBody(selectedTemplate.body || '');
 			});
+		}
+
+		if (sendTypeSelect && scheduleRow) {
+			var syncScheduleVisibility = function () {
+				scheduleRow.style.display = sendTypeSelect.value === 'scheduled' ? '' : 'none';
+			};
+
+			sendTypeSelect.addEventListener('change', syncScheduleVisibility);
+			syncScheduleVisibility();
 		}
 
 		if (!picker || !trigger || !panel || !searchInput || !summary || !badge || !hint || !selectAll || !clearButton || !recipientCheckboxes.length) {

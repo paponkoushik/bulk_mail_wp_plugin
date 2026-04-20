@@ -8,6 +8,8 @@ $form_title          = $is_edit_mode ? __( 'Edit Recipient', 'wp-bulk-mail' ) : 
 $submit_label        = $is_edit_mode ? __( 'Update Recipient', 'wp-bulk-mail' ) : __( 'Save Recipient', 'wp-bulk-mail' );
 $search_reset_url    = $plugin->get_recipients_page_url();
 $search_query        = $recipients_page['search_term'];
+$status_filter       = $recipients_page['status_filter'];
+$tag_filter          = $recipients_page['tag_filter'];
 $current_page        = (int) $recipients_page['current_page'];
 $total_items         = (int) $recipients_page['total_items'];
 $total_pages         = (int) $recipients_page['total_pages'];
@@ -77,6 +79,8 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 						<input type="hidden" name="action" value="wp_bulk_mail_add_recipient" />
 						<input type="hidden" name="wp_bulk_mail_recipient_id" value="<?php echo esc_attr( (string) $recipient_form_data['id'] ); ?>" />
 						<input type="hidden" name="redirect_search" value="<?php echo esc_attr( $search_query ); ?>" />
+						<input type="hidden" name="redirect_status" value="<?php echo esc_attr( $status_filter ); ?>" />
+						<input type="hidden" name="redirect_tag" value="<?php echo esc_attr( $tag_filter ); ?>" />
 						<input type="hidden" name="redirect_paged" value="<?php echo esc_attr( (string) $current_page ); ?>" />
 						<?php wp_nonce_field( 'wp_bulk_mail_add_recipient' ); ?>
 
@@ -112,13 +116,29 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 										<p class="description"><?php esc_html_e( 'Add one recipient at a time using Name and Email Address.', 'wp-bulk-mail' ); ?></p>
 									</td>
 								</tr>
+								<tr>
+									<th scope="row">
+										<label for="wp-bulk-mail-recipient-tags"><?php esc_html_e( 'Tags / Segments', 'wp-bulk-mail' ); ?></label>
+									</th>
+									<td>
+										<input
+											type="text"
+											class="regular-text"
+											id="wp-bulk-mail-recipient-tags"
+											name="wp_bulk_mail_recipient_tags"
+											value="<?php echo esc_attr( $recipient_form_data['tags'] ); ?>"
+											placeholder="<?php esc_attr_e( 'vip, newsletter, customers', 'wp-bulk-mail' ); ?>"
+										/>
+										<p class="description"><?php esc_html_e( 'Use comma-separated tags so campaigns can target segments later.', 'wp-bulk-mail' ); ?></p>
+									</td>
+								</tr>
 							</tbody>
 						</table>
 
 						<div class="wp-bulk-mail-admin-button-row">
 							<?php submit_button( $submit_label, 'primary', 'submit', false ); ?>
 							<?php if ( $is_edit_mode ) : ?>
-								<a class="button button-secondary" href="<?php echo esc_url( $plugin->get_recipients_page_url( array_filter( array( 'recipient_search' => $search_query, 'paged' => $current_page > 1 ? $current_page : null ) ) ) ); ?>">
+								<a class="button button-secondary" href="<?php echo esc_url( $plugin->get_recipients_page_url( array_filter( array( 'recipient_search' => $search_query, 'recipient_status' => 'active' !== $status_filter ? $status_filter : null, 'recipient_tag' => '' !== $tag_filter ? $tag_filter : null, 'paged' => $current_page > 1 ? $current_page : null ) ) ) ); ?>">
 									<?php esc_html_e( 'Cancel Edit', 'wp-bulk-mail' ); ?>
 								</a>
 							<?php endif; ?>
@@ -277,6 +297,17 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 						value="<?php echo esc_attr( $search_query ); ?>"
 						placeholder="<?php esc_attr_e( 'Search by name or email', 'wp-bulk-mail' ); ?>"
 					/>
+					<select name="recipient_status">
+						<option value="active" <?php selected( $status_filter, 'active' ); ?>><?php esc_html_e( 'Active only', 'wp-bulk-mail' ); ?></option>
+						<option value="unsubscribed" <?php selected( $status_filter, 'unsubscribed' ); ?>><?php esc_html_e( 'Unsubscribed only', 'wp-bulk-mail' ); ?></option>
+						<option value="all" <?php selected( $status_filter, 'all' ); ?>><?php esc_html_e( 'All statuses', 'wp-bulk-mail' ); ?></option>
+					</select>
+					<select name="recipient_tag">
+						<option value=""><?php esc_html_e( 'All tags', 'wp-bulk-mail' ); ?></option>
+						<?php foreach ( $available_tags as $available_tag ) : ?>
+							<option value="<?php echo esc_attr( $available_tag ); ?>" <?php selected( $tag_filter, $available_tag ); ?>><?php echo esc_html( $available_tag ); ?></option>
+						<?php endforeach; ?>
+					</select>
 					<?php submit_button( __( 'Search', 'wp-bulk-mail' ), 'secondary', '', false ); ?>
 					<?php if ( '' !== $search_query ) : ?>
 						<a class="button button-secondary" href="<?php echo esc_url( $search_reset_url ); ?>"><?php esc_html_e( 'Reset', 'wp-bulk-mail' ); ?></a>
@@ -293,6 +324,8 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 							<tr>
 								<th><?php esc_html_e( 'Name', 'wp-bulk-mail' ); ?></th>
 								<th><?php esc_html_e( 'Email', 'wp-bulk-mail' ); ?></th>
+								<th><?php esc_html_e( 'Tags', 'wp-bulk-mail' ); ?></th>
+								<th><?php esc_html_e( 'Status', 'wp-bulk-mail' ); ?></th>
 								<th><?php esc_html_e( 'Added', 'wp-bulk-mail' ); ?></th>
 								<th><?php esc_html_e( 'Action', 'wp-bulk-mail' ); ?></th>
 							</tr>
@@ -302,16 +335,24 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 								<tr>
 									<td><?php echo esc_html( '' !== $recipient['name'] ? $recipient['name'] : 'N/A' ); ?></td>
 									<td><?php echo esc_html( $recipient['email'] ); ?></td>
+									<td><?php echo esc_html( ! empty( $recipient['tags'] ) ? implode( ', ', $recipient['tags'] ) : __( 'None', 'wp-bulk-mail' ) ); ?></td>
+									<td>
+										<span class="wp-bulk-mail-admin-badge <?php echo 'unsubscribed' === $recipient['status'] ? 'is-danger' : 'is-success'; ?>">
+											<?php echo esc_html( ucfirst( (string) $recipient['status'] ) ); ?>
+										</span>
+									</td>
 									<td><?php echo esc_html( mysql2date( 'Y-m-d H:i', $recipient['created_at'] ) ); ?></td>
 									<td>
 										<div class="wp-bulk-mail-admin-inline-actions" style="justify-content:flex-start;">
-											<a href="<?php echo esc_url( $plugin->get_recipients_page_url( array_filter( array( 'recipient_search' => $search_query, 'paged' => $current_page > 1 ? $current_page : null, 'edit_recipient' => (int) $recipient['id'] ) ) ) ); ?>">
+											<a href="<?php echo esc_url( $plugin->get_recipients_page_url( array_filter( array( 'recipient_search' => $search_query, 'recipient_status' => 'active' !== $status_filter ? $status_filter : null, 'recipient_tag' => '' !== $tag_filter ? $tag_filter : null, 'paged' => $current_page > 1 ? $current_page : null, 'edit_recipient' => (int) $recipient['id'] ) ) ) ); ?>">
 												<?php esc_html_e( 'Edit', 'wp-bulk-mail' ); ?>
 											</a>
 											<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post" style="display:inline;">
 												<input type="hidden" name="action" value="wp_bulk_mail_delete_recipient" />
 												<input type="hidden" name="recipient_id" value="<?php echo esc_attr( (string) $recipient['id'] ); ?>" />
 												<input type="hidden" name="redirect_search" value="<?php echo esc_attr( $search_query ); ?>" />
+												<input type="hidden" name="redirect_status" value="<?php echo esc_attr( $status_filter ); ?>" />
+												<input type="hidden" name="redirect_tag" value="<?php echo esc_attr( $tag_filter ); ?>" />
 												<input type="hidden" name="redirect_paged" value="<?php echo esc_attr( (string) $current_page ); ?>" />
 												<?php wp_nonce_field( 'wp_bulk_mail_delete_recipient_' . $recipient['id'] ); ?>
 												<button type="submit" class="button-link-delete">
@@ -336,6 +377,8 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 												array(
 													'page'             => WP_Bulk_Mail_Plugin::RECIPIENTS_MENU_SLUG,
 													'recipient_search' => '' !== $search_query ? $search_query : null,
+													'recipient_status' => 'active' !== $status_filter ? $status_filter : null,
+													'recipient_tag'    => '' !== $tag_filter ? $tag_filter : null,
 													'paged'            => '%#%',
 												),
 												admin_url( 'admin.php' )

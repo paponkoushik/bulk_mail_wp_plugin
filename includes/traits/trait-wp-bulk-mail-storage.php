@@ -118,11 +118,16 @@ trait WP_Bulk_Mail_Storage_Trait {
 			id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
 			name VARCHAR(191) NOT NULL DEFAULT '',
 			email VARCHAR(191) NOT NULL,
+			tags TEXT NULL,
 			status VARCHAR(20) NOT NULL DEFAULT 'active',
+			unsubscribe_token VARCHAR(64) NOT NULL DEFAULT '',
+			unsubscribed_at DATETIME NULL DEFAULT NULL,
+			unsubscribe_source VARCHAR(50) NOT NULL DEFAULT '',
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 			PRIMARY KEY  (id),
 			UNIQUE KEY email (email),
+			KEY unsubscribe_token (unsubscribe_token),
 			KEY status (status)
 		) {$charset_collate};";
 
@@ -148,8 +153,11 @@ trait WP_Bulk_Mail_Storage_Trait {
 			subject VARCHAR(255) NOT NULL DEFAULT '',
 			body LONGTEXT NOT NULL,
 			template_id BIGINT(20) UNSIGNED NOT NULL DEFAULT 0,
+			segment_tag VARCHAR(191) NOT NULL DEFAULT '',
 			driver VARCHAR(50) NOT NULL DEFAULT 'wordpress',
 			status VARCHAR(20) NOT NULL DEFAULT 'draft',
+			send_type VARCHAR(20) NOT NULL DEFAULT 'immediate',
+			scheduled_at DATETIME NULL DEFAULT NULL,
 			created_by BIGINT(20) UNSIGNED NOT NULL DEFAULT 0,
 			total_recipients INT(10) UNSIGNED NOT NULL DEFAULT 0,
 			pending_count INT(10) UNSIGNED NOT NULL DEFAULT 0,
@@ -161,6 +169,7 @@ trait WP_Bulk_Mail_Storage_Trait {
 			PRIMARY KEY  (id),
 			KEY template_id (template_id),
 			KEY status (status),
+			KEY scheduled_at (scheduled_at),
 			KEY created_at (created_at)
 		) {$charset_collate};";
 

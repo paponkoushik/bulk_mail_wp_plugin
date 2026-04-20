@@ -96,5 +96,14 @@ trait WP_Bulk_Mail_Admin_Trait {
 			self::TEMPLATES_MENU_SLUG,
 			array( $this, 'render_templates_page' )
 		);
+
+		add_submenu_page(
+			self::MENU_SLUG,
+			__( 'Monitor', 'wp-bulk-mail' ),
+			__( 'Monitor', 'wp-bulk-mail' ),
+			'manage_options',
+			self::MONITOR_MENU_SLUG,
+			array( $this, 'render_monitor_page' )
+		);
 	}
 }
