@@ -16,6 +16,7 @@ class WP_Bulk_Mail_Plugin {
 	use WP_Bulk_Mail_Templates_Trait;
 	use WP_Bulk_Mail_Campaigns_Trait;
 	use WP_Bulk_Mail_Monitor_Trait;
+	use WP_Bulk_Mail_Bounces_Trait;
 
 	const OPTION_KEY             = 'wp_bulk_mail_mailer_settings';
 	const COMPOSE_OPTION_KEY     = 'wp_bulk_mail_compose_draft';
@@ -37,6 +38,8 @@ class WP_Bulk_Mail_Plugin {
 	const IMPORT_PROCESS_HOOK    = 'wp_bulk_mail_process_import_jobs';
 	const IMPORT_BATCH_SIZE      = 100;
 	const IMPORT_STALE_LOCK_AGE  = 900;
+	const BOUNCE_PROCESS_HOOK    = 'wp_bulk_mail_process_bounces';
+	const BOUNCE_SYNC_INTERVAL   = 300;
 
 	/**
 	 * Singleton instance.
@@ -65,6 +68,13 @@ class WP_Bulk_Mail_Plugin {
 	 * @var string
 	 */
 	private $last_mail_error_message = '';
+
+	/**
+	 * Current queue item context for outbound trace headers.
+	 *
+	 * @var array
+	 */
+	private $current_mail_trace_context = array();
 
 	/**
 	 * Boot the plugin.
@@ -130,6 +140,7 @@ class WP_Bulk_Mail_Plugin {
 
 		add_action( 'init', array( $this, 'maybe_schedule_queue_processing' ) );
 		add_action( 'init', array( $this, 'maybe_schedule_import_processing' ) );
+		add_action( 'init', array( $this, 'maybe_schedule_bounce_processing' ) );
 		add_action( 'admin_menu', array( $this, 'register_admin_menu' ) );
 		add_action( 'admin_init', array( $this, 'maybe_upgrade_storage' ), 1 );
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
@@ -143,8 +154,10 @@ class WP_Bulk_Mail_Plugin {
 		add_action( 'admin_post_wp_bulk_mail_retry_failed_item', array( $this, 'handle_retry_failed_item' ) );
 		add_action( 'admin_post_wp_bulk_mail_retry_failed_campaign', array( $this, 'handle_retry_failed_campaign' ) );
 		add_action( 'admin_post_wp_bulk_mail_retry_all_failed', array( $this, 'handle_retry_all_failed' ) );
+		add_action( 'admin_post_wp_bulk_mail_sync_bounces', array( $this, 'handle_sync_bounces_now' ) );
 		add_action( self::QUEUE_PROCESS_HOOK, array( $this, 'process_mail_queue' ) );
 		add_action( self::IMPORT_PROCESS_HOOK, array( $this, 'process_import_jobs' ) );
+		add_action( self::BOUNCE_PROCESS_HOOK, array( $this, 'process_bounce_mailbox' ) );
 		add_action( 'phpmailer_init', array( $this, 'configure_phpmailer' ) );
 		add_action( 'wp_mail_failed', array( $this, 'capture_mail_failure' ) );
 		add_action( 'template_redirect', array( $this, 'maybe_handle_unsubscribe_request' ) );

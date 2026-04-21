@@ -20,6 +20,7 @@ trait WP_Bulk_Mail_Dashboard_Trait {
 		}
 
 		$wrong_address_keywords = array(
+			'address not found',
 			'invalid address',
 			'invalid recipient',
 			'recipient address rejected',
@@ -66,7 +67,10 @@ trait WP_Bulk_Mail_Dashboard_Trait {
 			'undeliverable',
 			'delivery failed',
 			'returned',
+			'inbox full',
+			'recipient inbox full',
 			'mailbox full',
+			'quota exceeded',
 			'remote host',
 			'not reachable',
 		);

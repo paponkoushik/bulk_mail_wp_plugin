@@ -139,6 +139,7 @@ trait WP_Bulk_Mail_Settings_Trait {
 		}
 
 		$settings = $driver->sanitize_settings( $input, $settings, $current );
+		$settings = $this->sanitize_bounce_settings( $input, $settings, $current );
 
 		if ( empty( $settings['from_email'] ) || ! is_email( $settings['from_email'] ) ) {
 			$settings['from_email'] = $defaults['from_email'];
@@ -172,6 +173,13 @@ trait WP_Bulk_Mail_Settings_Trait {
 		$available_drivers = $this->get_available_drivers();
 		$planned_drivers   = $this->get_planned_drivers();
 		$sender_fields     = $this->get_sender_identity_fields();
+		$bounce_fields     = $this->get_bounce_tracking_fields();
+		$bounce_status     = $this->get_bounce_tracker_status();
+		$bounce_notice     = $this->get_bounce_notice();
+		$bounce_sync_url   = wp_nonce_url(
+			admin_url( 'admin-post.php?action=wp_bulk_mail_sync_bounces' ),
+			'wp_bulk_mail_sync_bounces_now'
+		);
 
 		require WP_BULK_MAIL_PATH . 'views/settings-page.php';
 	}
@@ -291,6 +299,7 @@ trait WP_Bulk_Mail_Settings_Trait {
 	 */
 	public function configure_phpmailer( $phpmailer ) {
 		$this->get_current_driver()->configure_phpmailer( $phpmailer, $this->get_settings() );
+		$this->apply_bounce_tracking_headers( $phpmailer );
 	}
 
 	/**

@@ -639,6 +639,10 @@ define( 'WP_BULK_MAIL_ADMIN_SHELL_STYLES_LOADED', true );
 		transition: background 0.15s ease;
 	}
 
+	.wp-bulk-mail-recipient-option[hidden] {
+		display: none;
+	}
+
 	.wp-bulk-mail-recipient-option:hover {
 		background: #f8fbff;
 	}

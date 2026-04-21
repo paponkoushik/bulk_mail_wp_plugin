@@ -168,11 +168,12 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 											<?php
 											$recipient_name  = '' !== $recipient['name'] ? $recipient['name'] : __( 'No name', 'wp-bulk-mail' );
 											$recipient_label = '' !== $recipient['name'] ? $recipient['name'] . ' <' . $recipient['email'] . '>' : $recipient['email'];
+											$recipient_search = strtolower( trim( $recipient_name . ' ' . $recipient['email'] ) );
 											$is_selected     = in_array( (int) $recipient['id'], $compose_draft['recipient_ids'], true );
 											?>
 											<label class="wp-bulk-mail-recipient-option"
 												data-recipient-option="<?php echo esc_attr( (string) $recipient['id'] ); ?>"
-												data-search="<?php echo esc_attr( strtolower( $recipient_label ) ); ?>"
+												data-search="<?php echo esc_attr( $recipient_search ); ?>"
 												data-selected="<?php echo $is_selected ? 'true' : 'false'; ?>">
 												<input type="checkbox" name="<?php echo esc_attr( $recipient_input_name ); ?>"
 													value="<?php echo esc_attr( (string) $recipient['id'] ); ?>"
@@ -373,11 +374,19 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 			}
 		}
 
+		function normalizeSearchText(value) {
+			return (value || '').toLowerCase().replace(/\s+/g, ' ').trim();
+		}
+
+		function getRowSearchText(row) {
+			return normalizeSearchText((row.getAttribute('data-search') || '') + ' ' + (row.textContent || ''));
+		}
+
 		function applySearch() {
-			var query = searchInput.value.toLowerCase().trim();
+			var query = normalizeSearchText(searchInput.value);
 
 			optionRows.forEach(function (row) {
-				var haystack = row.getAttribute('data-search') || '';
+				var haystack = getRowSearchText(row);
 				row.hidden = !!query && haystack.indexOf(query) === -1;
 			});
 

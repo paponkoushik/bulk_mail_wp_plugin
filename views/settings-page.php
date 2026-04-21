@@ -83,6 +83,11 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 			</section>
 
 			<?php settings_errors( WP_Bulk_Mail_Plugin::OPTION_KEY ); ?>
+			<?php if ( is_array( $bounce_notice ) && ! empty( $bounce_notice['message'] ) ) : ?>
+				<div class="notice notice-<?php echo 'error' === $bounce_notice['type'] ? 'error' : 'success'; ?> is-dismissible">
+					<p><?php echo esc_html( $bounce_notice['message'] ); ?></p>
+				</div>
+			<?php endif; ?>
 
 			<form action="options.php" method="post">
 				<?php settings_fields( 'wp_bulk_mail_settings' ); ?>
@@ -172,6 +177,45 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 									<?php endforeach; ?>
 								</tbody>
 							</table>
+						</section>
+
+						<section class="wp-bulk-mail-admin-card" id="wp-bulk-mail-bounce-tracking-settings">
+							<div class="wp-bulk-mail-admin-card-header">
+								<div>
+									<p class="wp-bulk-mail-admin-eyebrow"><?php esc_html_e( 'Step 4', 'wp-bulk-mail' ); ?></p>
+									<h2><?php esc_html_e( 'Later Bounce Tracking', 'wp-bulk-mail' ); ?></h2>
+									<p><?php esc_html_e( 'This reads bounce emails from your mailbox later, so addresses like "Address not found" can be traced back into the plugin after the SMTP server originally accepted the message.', 'wp-bulk-mail' ); ?></p>
+								</div>
+								<span class="wp-bulk-mail-admin-badge <?php echo ! empty( $bounce_status['enabled'] ) ? 'is-accent' : 'is-neutral'; ?>">
+									<?php echo esc_html( ! empty( $bounce_status['enabled'] ) ? __( 'Enabled', 'wp-bulk-mail' ) : __( 'Optional', 'wp-bulk-mail' ) ); ?>
+								</span>
+							</div>
+
+							<div class="wp-bulk-mail-admin-note" style="margin-bottom:16px;">
+								<p style="margin:0 0 8px;"><strong><?php esc_html_e( 'IMAP Support', 'wp-bulk-mail' ); ?>:</strong> <?php echo esc_html( ! empty( $bounce_status['imap_available'] ) ? __( 'Available on this server', 'wp-bulk-mail' ) : __( 'Missing on this server', 'wp-bulk-mail' ) ); ?></p>
+								<p style="margin:0 0 8px;"><strong><?php esc_html_e( 'Last Synced', 'wp-bulk-mail' ); ?>:</strong> <?php echo esc_html( ! empty( $bounce_status['last_synced_at'] ) ? mysql2date( 'Y-m-d H:i', $bounce_status['last_synced_at'] ) : __( 'Never', 'wp-bulk-mail' ) ); ?></p>
+								<p style="margin:0 0 8px;"><strong><?php esc_html_e( 'Last Scan', 'wp-bulk-mail' ); ?>:</strong> <?php echo esc_html( sprintf( __( '%1$d mailbox message(s), %2$d matched bounce(s)', 'wp-bulk-mail' ), (int) $bounce_status['last_scan_count'], (int) $bounce_status['last_match_count'] ) ); ?></p>
+								<?php if ( ! empty( $bounce_status['last_error'] ) ) : ?>
+									<p style="margin:0;"><strong><?php esc_html_e( 'Last Error', 'wp-bulk-mail' ); ?>:</strong> <?php echo esc_html( $bounce_status['last_error'] ); ?></p>
+								<?php endif; ?>
+							</div>
+
+							<table class="form-table" role="presentation">
+								<tbody>
+									<?php foreach ( $bounce_fields as $field ) : ?>
+										<?php $plugin->render_settings_field( $field, $settings ); ?>
+									<?php endforeach; ?>
+								</tbody>
+							</table>
+
+							<div class="wp-bulk-mail-admin-inline-actions">
+								<div>
+									<p class="wp-bulk-mail-admin-copy" style="margin:0;"><?php esc_html_e( 'For Gmail, use your Gmail address and app password here. If IMAP username or password are left blank, the plugin will reuse the SMTP values when possible.', 'wp-bulk-mail' ); ?></p>
+								</div>
+								<a class="button button-secondary" href="<?php echo esc_url( $bounce_sync_url ); ?>">
+									<?php esc_html_e( 'Sync Bounces Now', 'wp-bulk-mail' ); ?>
+								</a>
+							</div>
 						</section>
 
 						<?php if ( ! empty( $planned_drivers ) ) : ?>

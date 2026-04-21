@@ -351,12 +351,325 @@ trait WP_Bulk_Mail_Campaigns_Trait {
 	}
 
 	/**
+	 * Get the admin URL for one campaign details page.
+	 *
+	 * @param int   $campaign_id Campaign ID.
+	 * @param array $args Optional query args.
+	 * @return string
+	 */
+	public function get_campaign_details_page_url( $campaign_id, $args = array() ) {
+		$campaign_id = absint( $campaign_id );
+
+		if ( $campaign_id < 1 ) {
+			return $this->get_campaigns_page_url( $args );
+		}
+
+		return $this->get_campaigns_page_url(
+			wp_parse_args(
+				$args,
+				array(
+					'view_campaign' => $campaign_id,
+				)
+			)
+		);
+	}
+
+	/**
+	 * Classify one failed delivery into a campaign details bucket.
+	 *
+	 * @param string $error_message Failure message.
+	 * @return string
+	 */
+	private function classify_campaign_failure_bucket( $error_message ) {
+		$message = strtolower( trim( wp_strip_all_tags( (string) $error_message ) ) );
+
+		if ( '' === $message ) {
+			return 'cant_send';
+		}
+
+		if ( false !== strpos( $message, 'unsubscribed' ) ) {
+			return 'unsubscribed';
+		}
+
+		return $this->classify_failure_reason( $error_message );
+	}
+
+	/**
+	 * Get one human label for a campaign failure bucket.
+	 *
+	 * @param string $bucket Failure bucket.
+	 * @return string
+	 */
+	private function get_campaign_failure_bucket_label( $bucket ) {
+		switch ( $bucket ) {
+			case 'wrong_address':
+				return __( 'Wrong Address', 'wp-bulk-mail' );
+
+			case 'spam':
+				return __( 'Spam / Policy', 'wp-bulk-mail' );
+
+			case 'bounce':
+				return __( 'Bounce', 'wp-bulk-mail' );
+
+			case 'unsubscribed':
+				return __( 'Unsubscribed', 'wp-bulk-mail' );
+
+			default:
+				return __( 'Could Not Send', 'wp-bulk-mail' );
+		}
+	}
+
+	/**
+	 * Get recipient-level queue activity for one campaign.
+	 *
+	 * @param int $campaign_id Campaign ID.
+	 * @return array[]
+	 */
+	private function get_campaign_recipient_activity( $campaign_id ) {
+		global $wpdb;
+
+		$campaign_id               = absint( $campaign_id );
+		$campaign_recipients_table = self::get_campaign_recipients_table_name();
+		$recipients_table          = self::get_recipients_table_name();
+		$queue_table               = self::get_queue_table_name();
+
+		if ( $campaign_id < 1 ) {
+			return array();
+		}
+
+		return (array) $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT cr.recipient_id, cr.created_at AS linked_at,
+					r.name AS stored_name, r.email AS stored_email, r.status AS recipient_status, r.tags AS recipient_tags,
+					q.id AS queue_id, q.status AS queue_status, q.attempts, q.scheduled_at AS queue_scheduled_at, q.sent_at, q.error_message, q.updated_at AS queue_updated_at,
+					q.recipient_email, q.recipient_name
+				FROM {$campaign_recipients_table} cr
+				LEFT JOIN {$recipients_table} r ON r.id = cr.recipient_id
+				LEFT JOIN {$queue_table} q ON q.campaign_id = cr.campaign_id AND q.recipient_id = cr.recipient_id
+				WHERE cr.campaign_id = %d
+				ORDER BY cr.id ASC",
+				$campaign_id
+			),
+			ARRAY_A
+		);
+	}
+
+	/**
+	 * Get queue activity rows directly for campaigns that do not have saved campaign-recipient links.
+	 *
+	 * @param int $campaign_id Campaign ID.
+	 * @return array[]
+	 */
+	private function get_campaign_queue_activity( $campaign_id ) {
+		global $wpdb;
+
+		$campaign_id      = absint( $campaign_id );
+		$recipients_table = self::get_recipients_table_name();
+		$queue_table      = self::get_queue_table_name();
+
+		if ( $campaign_id < 1 ) {
+			return array();
+		}
+
+		return (array) $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT
+					q.recipient_id,
+					q.created_at AS linked_at,
+					r.name AS stored_name,
+					r.email AS stored_email,
+					r.status AS recipient_status,
+					r.tags AS recipient_tags,
+					q.id AS queue_id,
+					q.status AS queue_status,
+					q.attempts,
+					q.scheduled_at AS queue_scheduled_at,
+					q.sent_at,
+					q.error_message,
+					q.updated_at AS queue_updated_at,
+					q.recipient_email,
+					q.recipient_name
+				FROM {$queue_table} q
+				LEFT JOIN {$recipients_table} r ON r.id = q.recipient_id
+				WHERE q.campaign_id = %d
+				ORDER BY q.id ASC",
+				$campaign_id
+			),
+			ARRAY_A
+		);
+	}
+
+	/**
+	 * Build the full details payload for one campaign.
+	 *
+	 * @param int $campaign_id Campaign ID.
+	 * @return array|null
+	 */
+	private function get_campaign_details_data( $campaign_id ) {
+		$campaign_id = absint( $campaign_id );
+		$campaign    = $this->get_campaign_by_id( $campaign_id );
+
+		if ( ! is_array( $campaign ) ) {
+			return null;
+		}
+
+		$template = ! empty( $campaign['template_id'] ) ? $this->get_template_by_id( (int) $campaign['template_id'] ) : null;
+		$rows     = $this->get_campaign_recipient_activity( $campaign_id );
+
+		if ( empty( $rows ) ) {
+			$rows = $this->get_campaign_queue_activity( $campaign_id );
+		}
+		$summary  = array(
+			'total'          => 0,
+			'sent'           => 0,
+			'not_sent_yet'   => 0,
+			'queued'         => 0,
+			'processing'     => 0,
+			'draft'          => 0,
+			'failed'         => 0,
+			'wrong_address'  => 0,
+			'spam'           => 0,
+			'bounce'         => 0,
+			'cant_send'      => 0,
+			'unsubscribed'   => 0,
+		);
+		$sections = array(
+			'all'           => array(),
+			'sent'          => array(),
+			'not_sent_yet'  => array(),
+			'failed'        => array(),
+			'wrong_address' => array(),
+			'spam'          => array(),
+			'bounce'        => array(),
+			'cant_send'     => array(),
+			'unsubscribed'  => array(),
+		);
+
+		foreach ( $rows as $row ) {
+			$display_name   = '';
+			$display_email  = '';
+			$queue_status   = isset( $row['queue_status'] ) ? (string) $row['queue_status'] : '';
+			$failure_bucket = '';
+			$status_slug    = 'draft';
+			$status_label   = __( 'Not queued yet', 'wp-bulk-mail' );
+			$status_class   = 'is-neutral';
+
+			if ( '' !== (string) $row['recipient_name'] ) {
+				$display_name = (string) $row['recipient_name'];
+			} elseif ( '' !== (string) $row['stored_name'] ) {
+				$display_name = (string) $row['stored_name'];
+			} else {
+				$display_name = __( 'No name', 'wp-bulk-mail' );
+			}
+
+			if ( '' !== (string) $row['recipient_email'] ) {
+				$display_email = (string) $row['recipient_email'];
+			} elseif ( '' !== (string) $row['stored_email'] ) {
+				$display_email = (string) $row['stored_email'];
+			}
+
+			if ( 'sent' === $queue_status ) {
+				$status_slug  = 'sent';
+				$status_label = __( 'Sent', 'wp-bulk-mail' );
+				$status_class = 'is-success';
+				++$summary['sent'];
+				$sections['sent'][] = $row;
+			} elseif ( 'failed' === $queue_status ) {
+				$status_slug    = 'failed';
+				$status_label   = __( 'Failed', 'wp-bulk-mail' );
+				$status_class   = 'is-danger';
+				$failure_bucket = $this->classify_campaign_failure_bucket( isset( $row['error_message'] ) ? $row['error_message'] : '' );
+				++$summary['failed'];
+				++$summary[ $failure_bucket ];
+				$sections['failed'][]        = $row;
+				$sections[ $failure_bucket ][] = $row;
+			} elseif ( 'processing' === $queue_status ) {
+				$status_slug  = 'processing';
+				$status_label = __( 'Processing', 'wp-bulk-mail' );
+				$status_class = 'is-accent';
+				++$summary['not_sent_yet'];
+				++$summary['processing'];
+				$sections['not_sent_yet'][] = $row;
+			} elseif ( 'pending' === $queue_status ) {
+				$status_slug  = 'queued';
+				$status_label = 'scheduled' === $campaign['status'] ? __( 'Scheduled', 'wp-bulk-mail' ) : __( 'Queued', 'wp-bulk-mail' );
+				$status_class = 'is-accent';
+				++$summary['not_sent_yet'];
+				++$summary['queued'];
+				$sections['not_sent_yet'][] = $row;
+			} else {
+				++$summary['not_sent_yet'];
+				++$summary['draft'];
+				$sections['not_sent_yet'][] = $row;
+			}
+
+			$normalized_row = array(
+				'recipient_id'          => isset( $row['recipient_id'] ) ? (int) $row['recipient_id'] : 0,
+				'name'                  => $display_name,
+				'email'                 => $display_email,
+				'tags'                  => isset( $row['recipient_tags'] ) ? (string) $row['recipient_tags'] : '',
+				'recipient_status'      => isset( $row['recipient_status'] ) ? (string) $row['recipient_status'] : '',
+				'queue_id'              => isset( $row['queue_id'] ) ? (int) $row['queue_id'] : 0,
+				'queue_status'          => $queue_status,
+				'status_slug'           => $status_slug,
+				'status_label'          => $status_label,
+				'status_class'          => $status_class,
+				'attempts'              => isset( $row['attempts'] ) ? (int) $row['attempts'] : 0,
+				'scheduled_at'          => isset( $row['queue_scheduled_at'] ) ? (string) $row['queue_scheduled_at'] : '',
+				'sent_at'               => isset( $row['sent_at'] ) ? (string) $row['sent_at'] : '',
+				'updated_at'            => isset( $row['queue_updated_at'] ) ? (string) $row['queue_updated_at'] : '',
+				'error_message'         => isset( $row['error_message'] ) ? (string) $row['error_message'] : '',
+				'failure_bucket'        => $failure_bucket,
+				'failure_bucket_label'  => '' !== $failure_bucket ? $this->get_campaign_failure_bucket_label( $failure_bucket ) : '',
+			);
+
+			$sections['all'][] = $normalized_row;
+
+			if ( 'sent' === $status_slug ) {
+				$sections['sent'][ count( $sections['sent'] ) - 1 ] = $normalized_row;
+			} elseif ( 'failed' === $status_slug ) {
+				$sections['failed'][ count( $sections['failed'] ) - 1 ] = $normalized_row;
+				$sections[ $failure_bucket ][ count( $sections[ $failure_bucket ] ) - 1 ] = $normalized_row;
+			} else {
+				$sections['not_sent_yet'][ count( $sections['not_sent_yet'] ) - 1 ] = $normalized_row;
+			}
+		}
+
+		$summary['total'] = max( (int) $campaign['total_recipients'], count( $sections['all'] ) );
+
+		return array(
+			'campaign' => $campaign,
+			'template' => is_array( $template ) ? $template : null,
+			'summary'  => $summary,
+			'sections' => $sections,
+		);
+	}
+
+	/**
 	 * Render the campaigns page.
 	 *
 	 * @return void
 	 */
 	public function render_campaigns_page() {
 		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		$view_campaign_id = isset( $_GET['view_campaign'] ) ? absint( $_GET['view_campaign'] ) : 0;
+
+		if ( $view_campaign_id > 0 ) {
+			$plugin            = $this;
+			$campaigns_notice  = $this->get_campaigns_notice();
+			$campaign_details  = $this->get_campaign_details_data( $view_campaign_id );
+
+			if ( ! is_array( $campaign_details ) ) {
+				$this->set_campaigns_notice( 'error', __( 'Campaign details could not be loaded.', 'wp-bulk-mail' ) );
+				wp_safe_redirect( $this->get_campaigns_page_url() );
+				exit;
+			}
+
+			require WP_BULK_MAIL_PATH . 'views/campaign-details-page.php';
+
 			return;
 		}
 

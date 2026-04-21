@@ -231,6 +231,10 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 			transition: background 0.15s ease;
 		}
 
+		.wp-bulk-mail-recipient-option[hidden] {
+			display: none;
+		}
+
 		.wp-bulk-mail-recipient-option:hover {
 			background: #f8fafc;
 		}
@@ -487,9 +491,10 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 									<?php
 									$recipient_name  = '' !== $recipient['name'] ? $recipient['name'] : __( 'No name', 'wp-bulk-mail' );
 									$recipient_label = '' !== $recipient['name'] ? $recipient['name'] . ' <' . $recipient['email'] . '>' : $recipient['email'];
+									$recipient_search = strtolower( trim( $recipient_name . ' ' . $recipient['email'] ) );
 									$is_selected     = in_array( (int) $recipient['id'], $campaign_form_data['recipient_ids'], true );
 									?>
-									<label class="wp-bulk-mail-recipient-option" data-recipient-option="<?php echo esc_attr( (string) $recipient['id'] ); ?>" data-search="<?php echo esc_attr( strtolower( $recipient_label ) ); ?>" data-selected="<?php echo $is_selected ? 'true' : 'false'; ?>">
+									<label class="wp-bulk-mail-recipient-option" data-recipient-option="<?php echo esc_attr( (string) $recipient['id'] ); ?>" data-search="<?php echo esc_attr( $recipient_search ); ?>" data-selected="<?php echo $is_selected ? 'true' : 'false'; ?>">
 										<input type="checkbox" name="wp_bulk_mail_campaign_recipient_ids[]" value="<?php echo esc_attr( (string) $recipient['id'] ); ?>" data-recipient-checkbox="<?php echo esc_attr( (string) $recipient['id'] ); ?>" data-recipient-label="<?php echo esc_attr( $recipient_label ); ?>" <?php checked( $is_selected ); ?> />
 										<span class="wp-bulk-mail-recipient-option-copy">
 											<span class="wp-bulk-mail-recipient-option-name"><?php echo esc_html( $recipient_name ); ?></span>
@@ -627,7 +632,7 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 
 						if ( 'completed' === $campaign['status'] ) {
 							$status_class = 'is-success';
-						} elseif ( in_array( $campaign['status'], array( 'queued', 'processing', 'pending', 'scheduled' ), true ) ) {
+						} elseif ( in_array( $campaign['status'], array( 'queued', 'processing', 'pending', 'scheduled', 'partial' ), true ) ) {
 							$status_class = 'is-accent';
 						} elseif ( 'failed' === $campaign['status'] ) {
 							$status_class = 'is-danger';
@@ -667,6 +672,10 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 							</td>
 							<td><?php echo esc_html( mysql2date( 'Y-m-d H:i', $campaign['updated_at'] ) ); ?></td>
 							<td>
+								<a href="<?php echo esc_url( $plugin->get_campaign_details_page_url( (int) $campaign['id'] ) ); ?>">
+									<?php esc_html_e( 'Details', 'wp-bulk-mail' ); ?>
+								</a>
+								<span style="color:#94a3b8; margin:0 6px;">|</span>
 								<a href="<?php echo esc_url( $plugin->get_campaigns_page_url( array( 'edit_campaign' => (int) $campaign['id'] ) ) ); ?>">
 									<?php esc_html_e( 'Edit', 'wp-bulk-mail' ); ?>
 								</a>
@@ -830,11 +839,19 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 			}
 		}
 
+		function normalizeSearchText(value) {
+			return (value || '').toLowerCase().replace(/\s+/g, ' ').trim();
+		}
+
+		function getRowSearchText(row) {
+			return normalizeSearchText((row.getAttribute('data-search') || '') + ' ' + (row.textContent || ''));
+		}
+
 		function applySearch() {
-			var query = searchInput.value.toLowerCase().trim();
+			var query = normalizeSearchText(searchInput.value);
 
 			optionRows.forEach(function (row) {
-				var haystack = row.getAttribute('data-search') || '';
+				var haystack = getRowSearchText(row);
 				row.hidden = !!query && haystack.indexOf(query) === -1;
 			});
 

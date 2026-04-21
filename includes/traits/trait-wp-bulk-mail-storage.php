@@ -14,9 +14,16 @@ trait WP_Bulk_Mail_Storage_Trait {
 	public static function default_settings() {
 		return array_merge(
 			array(
-				'driver'     => 'wordpress',
-				'from_email' => get_option( 'admin_email' ),
-				'from_name'  => get_bloginfo( 'name' ),
+				'driver'                  => 'wordpress',
+				'from_email'              => get_option( 'admin_email' ),
+				'from_name'               => get_bloginfo( 'name' ),
+				'bounce_tracking_enabled' => 0,
+				'bounce_imap_host'        => 'imap.gmail.com',
+				'bounce_imap_port'        => 993,
+				'bounce_imap_encryption'  => 'ssl',
+				'bounce_imap_folder'      => 'INBOX',
+				'bounce_imap_username'    => '',
+				'bounce_imap_password'    => '',
 			),
 			self::create_driver_registry()->get_defaults()
 		);

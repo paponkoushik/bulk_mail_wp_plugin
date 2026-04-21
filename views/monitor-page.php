@@ -105,6 +105,11 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 									<td>
 										<strong><?php echo esc_html( ! empty( $failed_item['campaign_name'] ) ? $failed_item['campaign_name'] : $failed_item['campaign_subject'] ); ?></strong>
 										<p class="description" style="margin:6px 0 0;">#<?php echo esc_html( (string) $failed_item['campaign_id'] ); ?></p>
+										<p style="margin:8px 0 0;">
+											<a href="<?php echo esc_url( $plugin->get_campaign_details_page_url( (int) $failed_item['campaign_id'] ) ); ?>">
+												<?php esc_html_e( 'View Details', 'wp-bulk-mail' ); ?>
+											</a>
+										</p>
 										<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post" style="margin-top:8px;">
 											<input type="hidden" name="action" value="wp_bulk_mail_retry_failed_campaign" />
 											<input type="hidden" name="campaign_id" value="<?php echo esc_attr( (string) $failed_item['campaign_id'] ); ?>" />

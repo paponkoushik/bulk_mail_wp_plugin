@@ -447,6 +447,10 @@ trait WP_Bulk_Mail_Queue_Trait {
 		}
 
 		$campaign_id = (int) $wpdb->insert_id;
+		$this->sync_campaign_recipients(
+			$campaign_id,
+			wp_list_pluck( (array) $selected_recipients, 'id' )
+		);
 		$queue_result = $this->queue_saved_campaign( $campaign_id, $selected_recipients );
 
 		if ( is_wp_error( $queue_result ) ) {
@@ -620,6 +624,7 @@ trait WP_Bulk_Mail_Queue_Trait {
 		$this->last_mail_error_message = '';
 		$subject = $this->replace_template_tokens( isset( $queue_item['subject'] ) ? $queue_item['subject'] : '', $queue_item );
 		$body    = $this->replace_template_tokens( $queued_body, $queue_item );
+		$this->set_current_mail_trace_context( $queue_item );
 
 		$sent = wp_mail(
 			$queue_item['recipient_email'],
@@ -627,6 +632,7 @@ trait WP_Bulk_Mail_Queue_Trait {
 			wpautop( $body ),
 			$headers
 		);
+		$this->clear_current_mail_trace_context();
 
 		if ( $sent ) {
 			$wpdb->update(
