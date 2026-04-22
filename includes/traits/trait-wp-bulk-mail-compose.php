@@ -34,6 +34,7 @@ trait WP_Bulk_Mail_Compose_Trait {
 
 		$draft                  = wp_parse_args( $draft, self::default_compose_draft() );
 		$draft['recipient_ids'] = $this->sanitize_recipient_ids( isset( $draft['recipient_ids'] ) ? $draft['recipient_ids'] : array() );
+		$draft['template_id']   = isset( $draft['template_id'] ) ? absint( $draft['template_id'] ) : 0;
 
 		return $draft;
 	}
@@ -140,6 +141,7 @@ trait WP_Bulk_Mail_Compose_Trait {
 
 		return array(
 			'recipient_ids' => $this->sanitize_recipient_ids( isset( $input['recipient_ids'] ) ? $input['recipient_ids'] : array() ),
+			'template_id'   => isset( $input['template_id'] ) ? absint( $input['template_id'] ) : 0,
 			'subject'       => isset( $input['subject'] ) ? sanitize_text_field( wp_unslash( $input['subject'] ) ) : '',
 			'body'          => isset( $input['body'] ) ? wp_kses_post( wp_unslash( $input['body'] ) ) : '',
 		);
@@ -171,6 +173,8 @@ trait WP_Bulk_Mail_Compose_Trait {
 		$queue_overview      = $this->get_queue_overview();
 		$stored_recipients   = $this->get_all_recipients();
 		$selected_recipients = $this->get_recipients_by_ids( $compose_draft['recipient_ids'] );
+		$stored_templates    = $this->get_all_templates();
+		$template_tokens     = $this->get_template_tokens();
 
 		require WP_BULK_MAIL_PATH . 'views/compose-page.php';
 	}

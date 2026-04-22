@@ -430,7 +430,7 @@ trait WP_Bulk_Mail_Queue_Trait {
 				'name'             => '' !== $draft['subject'] ? $draft['subject'] : __( 'Quick Bulk Send', 'wp-bulk-mail' ),
 				'subject'          => $draft['subject'],
 				'body'             => $draft['body'],
-				'template_id'      => 0,
+				'template_id'      => isset( $draft['template_id'] ) ? absint( $draft['template_id'] ) : 0,
 				'driver'           => $this->get_current_driver()->get_id(),
 				'status'           => 'draft',
 				'created_by'       => get_current_user_id(),
@@ -716,7 +716,8 @@ trait WP_Bulk_Mail_Queue_Trait {
 						SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending_count,
 						SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) AS processing_count,
 						SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) AS sent_count,
-						SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed_count
+						SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed_count,
+						SUM(CASE WHEN status = 'pending' AND attempts > 0 THEN 1 ELSE 0 END) AS retry_pending_count
 					FROM {$queue_table}
 					WHERE campaign_id = %d",
 					$campaign_id
@@ -733,6 +734,7 @@ trait WP_Bulk_Mail_Queue_Trait {
 			$processing_count = (int) $counts['processing_count'];
 			$sent_count       = (int) $counts['sent_count'];
 			$failed_count     = (int) $counts['failed_count'];
+			$retry_pending_count = (int) $counts['retry_pending_count'];
 			$status           = 'queued';
 			$next_pending_at  = $wpdb->get_var(
 				$wpdb->prepare(
@@ -741,13 +743,19 @@ trait WP_Bulk_Mail_Queue_Trait {
 					'pending'
 				)
 			);
+			$campaign_send_type = (string) $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT send_type FROM {$campaigns_table} WHERE id = %d LIMIT 1",
+					$campaign_id
+				)
+			);
 
 			if ( $total_count > 0 && $sent_count >= $total_count ) {
 				$status = 'completed';
 			} elseif ( $processing_count > 0 || $pending_count > 0 ) {
-				if ( $processing_count > 0 || $sent_count > 0 || $failed_count > 0 ) {
+				if ( $processing_count > 0 || $sent_count > 0 || $failed_count > 0 || $retry_pending_count > 0 ) {
 					$status = 'processing';
-				} elseif ( ! empty( $next_pending_at ) && $this->get_local_datetime_timestamp( $next_pending_at ) > time() ) {
+				} elseif ( 'scheduled' === $campaign_send_type && ! empty( $next_pending_at ) && $this->get_local_datetime_timestamp( $next_pending_at ) > time() ) {
 					$status = 'scheduled';
 				} else {
 					$status = 'queued';
@@ -786,6 +794,21 @@ trait WP_Bulk_Mail_Queue_Trait {
 		$queue_items = $this->claim_queue_batch( self::QUEUE_BATCH_SIZE );
 
 		if ( empty( $queue_items ) ) {
+			global $wpdb;
+
+			$open_campaign_ids = array_map(
+				'absint',
+				(array) $wpdb->get_col(
+					"SELECT DISTINCT campaign_id
+					FROM " . self::get_queue_table_name() . "
+					WHERE status IN ('pending', 'processing')"
+				)
+			);
+
+			if ( ! empty( $open_campaign_ids ) ) {
+				$this->update_campaign_statuses( $open_campaign_ids );
+			}
+
 			if ( $this->has_open_queue_items() ) {
 				$this->ensure_background_action_schedule( self::QUEUE_PROCESS_HOOK, $this->get_next_queue_delay() );
 			}

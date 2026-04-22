@@ -220,7 +220,7 @@ trait WP_Bulk_Mail_Bounces_Trait {
 		}
 
 		if ( isset( $input['bounce_imap_password'] ) ) {
-			$submitted_password              = trim( (string) wp_unslash( $input['bounce_imap_password'] ) );
+			$submitted_password              = preg_replace( '/\s+/', '', trim( (string) wp_unslash( $input['bounce_imap_password'] ) ) );
 			$settings['bounce_imap_password'] = '' !== $submitted_password ? $submitted_password : $current['bounce_imap_password'];
 		}
 

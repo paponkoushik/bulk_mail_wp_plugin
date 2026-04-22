@@ -270,6 +270,16 @@ define( 'WP_BULK_MAIL_ADMIN_SHELL_STYLES_LOADED', true );
 		color: #1d4d8f;
 		font-size: 12px;
 		font-weight: 700;
+		cursor: pointer;
+		font-family: inherit;
+		line-height: 1.2;
+	}
+
+	button.wp-bulk-mail-admin-token:hover,
+	button.wp-bulk-mail-admin-token:focus {
+		border-color: #7aa8e8;
+		box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+		outline: none;
 	}
 
 	.wp-bulk-mail-admin-shell p.description {

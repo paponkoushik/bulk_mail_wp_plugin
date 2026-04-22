@@ -7,6 +7,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 $recipient_input_name    = WP_Bulk_Mail_Plugin::COMPOSE_OPTION_KEY . '[recipient_ids][]';
 $selected_recipient_count = count( $selected_recipients );
 $selected_summary_text    = __( 'Select recipients', 'wp-bulk-mail' );
+$template_payload         = array();
+
+foreach ( $stored_templates as $template ) {
+	$template_payload[] = array(
+		'id'          => (int) $template['id'],
+		'name'        => $template['name'],
+		'description' => $template['description'],
+		'subject'     => $template['subject'],
+		'body'        => $template['body'],
+	);
+}
 
 if ( 1 === $selected_recipient_count ) {
 	$first_recipient_label = '' !== $selected_recipients[0]['name'] ? $selected_recipients[0]['name'] . ' <' . $selected_recipients[0]['email'] . '>' : $selected_recipients[0]['email'];
@@ -212,6 +223,40 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 					<section class="wp-bulk-mail-admin-card">
 						<div class="wp-bulk-mail-admin-card-header">
 							<div>
+								<p class="wp-bulk-mail-admin-eyebrow"><?php esc_html_e( 'Content Source', 'wp-bulk-mail' ); ?></p>
+								<h2><?php esc_html_e( 'Template or Custom', 'wp-bulk-mail' ); ?></h2>
+								<p><?php esc_html_e( 'Start from a saved template or keep writing custom content. Selecting a template can prefill the subject and body, and you can still edit everything before sending.', 'wp-bulk-mail' ); ?></p>
+							</div>
+							<a class="button button-secondary" href="<?php echo esc_url( $plugin->get_templates_page_url() ); ?>">
+								<?php esc_html_e( 'Manage Templates', 'wp-bulk-mail' ); ?>
+							</a>
+						</div>
+
+						<table class="form-table wp-bulk-mail-settings-table" role="presentation">
+							<tbody>
+								<tr>
+									<th scope="row">
+										<label for="wp-bulk-mail-compose-template-id"><?php esc_html_e( 'Template Source', 'wp-bulk-mail' ); ?></label>
+									</th>
+									<td>
+										<select id="wp-bulk-mail-compose-template-id" name="<?php echo esc_attr( WP_Bulk_Mail_Plugin::COMPOSE_OPTION_KEY ); ?>[template_id]" class="regular-text">
+											<option value="0"><?php esc_html_e( 'Custom write only', 'wp-bulk-mail' ); ?></option>
+											<?php foreach ( $stored_templates as $template ) : ?>
+												<option value="<?php echo esc_attr( (string) $template['id'] ); ?>" <?php selected( (int) $compose_draft['template_id'], (int) $template['id'] ); ?>>
+													<?php echo esc_html( $template['name'] ); ?>
+												</option>
+											<?php endforeach; ?>
+										</select>
+										<p class="description"><?php esc_html_e( 'Pick any saved template to load it, or keep this on custom and write everything manually.', 'wp-bulk-mail' ); ?></p>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+					</section>
+
+					<section class="wp-bulk-mail-admin-card">
+						<div class="wp-bulk-mail-admin-card-header">
+							<div>
 								<p class="wp-bulk-mail-admin-eyebrow"><?php esc_html_e( 'Message Setup', 'wp-bulk-mail' ); ?></p>
 								<h2><?php esc_html_e( 'Subject', 'wp-bulk-mail' ); ?></h2>
 							</div>
@@ -229,6 +274,19 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 								<p><?php esc_html_e( 'This one message body will be used for all selected recipients.', 'wp-bulk-mail' ); ?></p>
 							</div>
 						</div>
+						<div class="wp-bulk-mail-admin-token-cloud" style="margin-bottom:16px;">
+							<?php foreach ( $template_tokens as $token ) : ?>
+								<button
+									type="button"
+									class="wp-bulk-mail-admin-token"
+									data-insert-token="<?php echo esc_attr( $token['token'] ); ?>"
+									title="<?php echo esc_attr( $token['description'] ); ?>"
+								>
+									<?php echo esc_html( $token['token'] ); ?>
+								</button>
+							<?php endforeach; ?>
+						</div>
+						<p class="wp-bulk-mail-admin-copy" style="margin:0 0 14px;"><?php esc_html_e( 'Click any token to insert it into the focused field. If nothing is focused, it will be added to the mail body editor.', 'wp-bulk-mail' ); ?></p>
 						<?php
 						wp_editor(
 							$compose_draft['body'],
@@ -307,10 +365,132 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 		var selectAll = document.getElementById('wp-bulk-mail-select-all');
 		var clearButton = document.getElementById('wp-bulk-mail-clear-selection');
 		var emptyState = document.getElementById('wp-bulk-mail-recipient-empty');
+		var templateSelect = document.getElementById('wp-bulk-mail-compose-template-id');
+		var subjectInput = document.querySelector('input[name="<?php echo esc_js( WP_Bulk_Mail_Plugin::COMPOSE_OPTION_KEY ); ?>[subject]"]');
+		var tokenButtons = Array.prototype.slice.call(document.querySelectorAll('[data-insert-token]'));
+		var templateMap = <?php echo wp_json_encode( $template_payload ); ?>;
 		var optionRows = picker ? Array.prototype.slice.call(picker.querySelectorAll('[data-recipient-option]')) : [];
 		var recipientCheckboxes = optionRows.map(function (row) {
 			return row.querySelector('[data-recipient-checkbox]');
 		}).filter(Boolean);
+
+		function getComposeEditor() {
+			if (window.tinymce) {
+				return window.tinymce.get('wp-bulk-mail-compose-body');
+			}
+
+			return null;
+		}
+
+		function getComposeTextarea() {
+			return document.querySelector('textarea[name="<?php echo esc_js( WP_Bulk_Mail_Plugin::COMPOSE_OPTION_KEY ); ?>[body]"]');
+		}
+
+		function setComposeBody(content) {
+			var editor = getComposeEditor();
+			var textarea = getComposeTextarea();
+
+			if (editor) {
+				editor.setContent(content || '');
+			}
+
+			if (textarea) {
+				textarea.value = content || '';
+			}
+		}
+
+		function insertIntoField(field, token) {
+			if (!field) {
+				return false;
+			}
+
+			var start = typeof field.selectionStart === 'number' ? field.selectionStart : field.value.length;
+			var end = typeof field.selectionEnd === 'number' ? field.selectionEnd : field.value.length;
+			var currentValue = field.value || '';
+			field.value = currentValue.slice(0, start) + token + currentValue.slice(end);
+			field.focus();
+			if (typeof field.setSelectionRange === 'function') {
+				field.setSelectionRange(start + token.length, start + token.length);
+			}
+
+			return true;
+		}
+
+		if (templateSelect && subjectInput) {
+			templateSelect.addEventListener('change', function () {
+				var templateId = parseInt(templateSelect.value || '0', 10);
+				var selectedTemplate = templateMap.find(function (template) {
+					return parseInt(template.id, 10) === templateId;
+				});
+
+				if (!selectedTemplate) {
+					return;
+				}
+
+				var currentBody = '';
+				var editor = getComposeEditor();
+				var textarea = getComposeTextarea();
+				var shouldReplace = true;
+
+				if (editor) {
+					currentBody = editor.getContent({ format: 'raw' });
+				} else if (textarea) {
+					currentBody = textarea.value;
+				}
+
+				if (subjectInput.value.trim() !== '' || currentBody.replace(/<[^>]*>/g, '').trim() !== '') {
+					shouldReplace = window.confirm('Replace the current subject and body with the selected template?');
+				}
+
+				if (!shouldReplace) {
+					return;
+				}
+
+				subjectInput.value = selectedTemplate.subject || '';
+				setComposeBody(selectedTemplate.body || '');
+			});
+		}
+
+		tokenButtons.forEach(function (button) {
+			button.addEventListener('click', function () {
+				var token = button.getAttribute('data-insert-token') || '';
+				var activeElement = document.activeElement;
+				var composeTextarea = getComposeTextarea();
+				var composeEditor = getComposeEditor();
+
+				if (activeElement && activeElement.tagName === 'INPUT' && activeElement.type === 'text') {
+					if (insertIntoField(activeElement, token)) {
+						return;
+					}
+				}
+
+				if (activeElement && activeElement.tagName === 'TEXTAREA') {
+					if (insertIntoField(activeElement, token)) {
+						if (composeEditor) {
+							composeEditor.setContent(activeElement.value || '');
+						}
+						return;
+					}
+				}
+
+				if (composeEditor && composeEditor.hasFocus()) {
+					composeEditor.execCommand('mceInsertContent', false, token);
+					return;
+				}
+
+				if (composeTextarea && insertIntoField(composeTextarea, token)) {
+					if (composeEditor) {
+						composeEditor.setContent(composeTextarea.value || '');
+					}
+					return;
+				}
+
+				if (composeEditor) {
+					composeEditor.focus();
+					composeEditor.execCommand('mceInsertContent', false, token);
+				}
+			});
+		});
 
 		if (!picker || !trigger || !panel || !searchInput || !summary || !badge || !hint || !selectAll || !clearButton || !recipientCheckboxes.length) {
 			return;

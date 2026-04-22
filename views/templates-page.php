@@ -123,6 +123,19 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 								<h3 class="wp-bulk-mail-admin-card-title"><?php esc_html_e( 'Template Builder', 'wp-bulk-mail' ); ?></h3>
 							</div>
 						</div>
+						<div class="wp-bulk-mail-admin-token-cloud" style="margin-bottom:16px;">
+							<?php foreach ( $template_tokens as $token ) : ?>
+								<button
+									type="button"
+									class="wp-bulk-mail-admin-token"
+									data-template-insert-token="<?php echo esc_attr( $token['token'] ); ?>"
+									title="<?php echo esc_attr( $token['description'] ); ?>"
+								>
+									<?php echo esc_html( $token['token'] ); ?>
+								</button>
+							<?php endforeach; ?>
+						</div>
+						<p class="wp-bulk-mail-admin-copy" style="margin:0 0 14px;"><?php esc_html_e( 'Click a token to insert it into the focused field. If nothing is focused, it goes into the template body editor.', 'wp-bulk-mail' ); ?></p>
 						<?php
 						wp_editor(
 							$template_form_data['body'],
@@ -159,7 +172,9 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 					<div class="wp-bulk-mail-admin-token-list">
 						<?php foreach ( $template_tokens as $token ) : ?>
 							<div class="wp-bulk-mail-admin-token-item">
-								<code><?php echo esc_html( $token['token'] ); ?></code>
+								<button type="button" class="wp-bulk-mail-admin-token" data-template-insert-token="<?php echo esc_attr( $token['token'] ); ?>">
+									<?php echo esc_html( $token['token'] ); ?>
+								</button>
 								<div class="wp-bulk-mail-admin-copy"><?php echo esc_html( $token['description'] ); ?></div>
 							</div>
 						<?php endforeach; ?>
@@ -230,3 +245,90 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 		</div>
 	</div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+	var tokenButtons = Array.prototype.slice.call(document.querySelectorAll('[data-template-insert-token]'));
+	var subjectInput = document.getElementById('wp-bulk-mail-template-subject');
+
+	if (!tokenButtons.length) {
+		return;
+	}
+
+	function getTemplateEditor() {
+		if (window.tinymce) {
+			return window.tinymce.get('wp_bulk_mail_template_body');
+		}
+
+		return null;
+	}
+
+	function getTemplateTextarea() {
+		return document.getElementById('wp_bulk_mail_template_body');
+	}
+
+	function insertIntoField(field, token) {
+		if (!field) {
+			return false;
+		}
+
+		var start = typeof field.selectionStart === 'number' ? field.selectionStart : field.value.length;
+		var end = typeof field.selectionEnd === 'number' ? field.selectionEnd : field.value.length;
+		var currentValue = field.value || '';
+
+		field.value = currentValue.slice(0, start) + token + currentValue.slice(end);
+		field.focus();
+
+		if (typeof field.setSelectionRange === 'function') {
+			field.setSelectionRange(start + token.length, start + token.length);
+		}
+
+		return true;
+	}
+
+	tokenButtons.forEach(function (button) {
+		button.addEventListener('click', function () {
+			var token = button.getAttribute('data-template-insert-token') || '';
+			var activeElement = document.activeElement;
+			var editor = getTemplateEditor();
+			var textarea = getTemplateTextarea();
+
+			if (activeElement && activeElement.tagName === 'INPUT' && activeElement.type === 'text') {
+				if (insertIntoField(activeElement, token)) {
+					return;
+				}
+			}
+
+			if (activeElement && activeElement.tagName === 'TEXTAREA') {
+				if (insertIntoField(activeElement, token)) {
+					if (editor) {
+						editor.setContent(activeElement.value || '');
+					}
+					return;
+				}
+			}
+
+			if (editor && editor.hasFocus()) {
+				editor.execCommand('mceInsertContent', false, token);
+				return;
+			}
+
+			if (textarea && insertIntoField(textarea, token)) {
+				if (editor) {
+					editor.setContent(textarea.value || '');
+				}
+				return;
+			}
+
+			if (subjectInput && insertIntoField(subjectInput, token)) {
+				return;
+			}
+
+			if (editor) {
+				editor.focus();
+				editor.execCommand('mceInsertContent', false, token);
+			}
+		});
+	});
+});
+</script>

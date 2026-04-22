@@ -98,3 +98,74 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 		</div>
 	</div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+	var mediaButtons = document.querySelectorAll('.wp-bulk-mail-media-select');
+	var clearButtons = document.querySelectorAll('.wp-bulk-mail-media-clear');
+
+	if (!mediaButtons.length && !clearButtons.length) {
+		return;
+	}
+
+	var syncPreview = function (targetId, url) {
+		var preview = document.querySelector('[data-target-preview="' + targetId + '"]');
+
+		if (!preview) {
+			return;
+		}
+
+		if (url) {
+			preview.src = url;
+			preview.style.display = 'block';
+		} else {
+			preview.src = '';
+			preview.style.display = 'none';
+		}
+	};
+
+	mediaButtons.forEach(function (button) {
+		button.addEventListener('click', function () {
+			var targetId = button.getAttribute('data-target');
+			var input = document.getElementById(targetId);
+
+			if (!input || typeof wp === 'undefined' || !wp.media) {
+				return;
+			}
+
+			var frame = wp.media({
+				title: '<?php echo esc_js( __( 'Select Company Logo', 'wp-bulk-mail' ) ); ?>',
+				button: {
+					text: '<?php echo esc_js( __( 'Use This Logo', 'wp-bulk-mail' ) ); ?>'
+				},
+				library: {
+					type: 'image'
+				},
+				multiple: false
+			});
+
+			frame.on('select', function () {
+				var attachment = frame.state().get('selection').first().toJSON();
+				input.value = attachment.url || '';
+				syncPreview(targetId, input.value);
+			});
+
+			frame.open();
+		});
+	});
+
+	clearButtons.forEach(function (button) {
+		button.addEventListener('click', function () {
+			var targetId = button.getAttribute('data-target');
+			var input = document.getElementById(targetId);
+
+			if (!input) {
+				return;
+			}
+
+			input.value = '';
+			syncPreview(targetId, '');
+		});
+	});
+});
+</script>

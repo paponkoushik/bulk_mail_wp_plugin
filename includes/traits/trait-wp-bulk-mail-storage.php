@@ -42,6 +42,7 @@ trait WP_Bulk_Mail_Storage_Trait {
 	public static function default_compose_draft() {
 		return array(
 			'recipient_ids' => array(),
+			'template_id'   => 0,
 			'subject'       => '',
 			'body'          => '',
 		);

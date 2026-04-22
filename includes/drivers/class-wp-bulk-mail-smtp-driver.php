@@ -130,7 +130,7 @@ class WP_Bulk_Mail_SMTP_Driver extends WP_Bulk_Mail_Driver {
 		}
 
 		if ( isset( $input['smtp_password'] ) ) {
-			$submitted_password        = trim( (string) wp_unslash( $input['smtp_password'] ) );
+			$submitted_password        = preg_replace( '/\s+/', '', trim( (string) wp_unslash( $input['smtp_password'] ) ) );
 			$settings['smtp_password'] = '' !== $submitted_password ? $submitted_password : $current['smtp_password'];
 		}
 
