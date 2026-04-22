@@ -12,7 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WP_BULK_MAIL_VERSION', '0.8.0' );
+define( 'WP_BULK_MAIL_VERSION', '0.9.3' );
 define( 'WP_BULK_MAIL_FILE', __FILE__ );
 define( 'WP_BULK_MAIL_PATH', plugin_dir_path( __FILE__ ) );
 define( 'WP_BULK_MAIL_URL', plugin_dir_url( __FILE__ ) );

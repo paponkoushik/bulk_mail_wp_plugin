@@ -7,12 +7,26 @@ if ( ! defined( 'ABSPATH' ) ) {
 trait WP_Bulk_Mail_Compose_Trait {
 
 	/**
+	 * Return the user-meta key used for per-user compose drafts.
+	 *
+	 * @return string
+	 */
+	private function get_compose_draft_meta_key() {
+		return self::COMPOSE_OPTION_KEY;
+	}
+
+	/**
 	 * Read and normalize the saved compose draft.
 	 *
 	 * @return array
 	 */
 	public function get_compose_draft() {
-		$draft = get_option( self::COMPOSE_OPTION_KEY, array() );
+		$user_id = get_current_user_id();
+		$draft   = $user_id > 0 ? get_user_meta( $user_id, $this->get_compose_draft_meta_key(), true ) : array();
+
+		if ( empty( $draft ) || ! is_array( $draft ) ) {
+			$draft = get_option( self::COMPOSE_OPTION_KEY, array() );
+		}
 
 		if ( ! is_array( $draft ) ) {
 			$draft = array();
@@ -22,6 +36,24 @@ trait WP_Bulk_Mail_Compose_Trait {
 		$draft['recipient_ids'] = $this->sanitize_recipient_ids( isset( $draft['recipient_ids'] ) ? $draft['recipient_ids'] : array() );
 
 		return $draft;
+	}
+
+	/**
+	 * Persist the compose draft for the current admin user.
+	 *
+	 * @param array $draft Normalized draft data.
+	 * @return void
+	 */
+	private function save_compose_draft( $draft ) {
+		$draft   = wp_parse_args( is_array( $draft ) ? $draft : array(), self::default_compose_draft() );
+		$user_id = get_current_user_id();
+
+		if ( $user_id > 0 ) {
+			update_user_meta( $user_id, $this->get_compose_draft_meta_key(), $draft );
+			return;
+		}
+
+		update_option( self::COMPOSE_OPTION_KEY, $draft, false );
 	}
 
 	/**
@@ -85,7 +117,7 @@ trait WP_Bulk_Mail_Compose_Trait {
 		$draft                  = $this->get_compose_draft();
 		$draft['recipient_ids'] = array();
 
-		update_option( self::COMPOSE_OPTION_KEY, $draft, false );
+		$this->save_compose_draft( $draft );
 	}
 
 	/**
@@ -156,7 +188,7 @@ trait WP_Bulk_Mail_Compose_Trait {
 		check_admin_referer( 'wp_bulk_mail_compose_submit' );
 
 		$draft = $this->sanitize_compose_draft( isset( $_POST[ self::COMPOSE_OPTION_KEY ] ) ? $_POST[ self::COMPOSE_OPTION_KEY ] : array() );
-		update_option( self::COMPOSE_OPTION_KEY, $draft, false );
+		$this->save_compose_draft( $draft );
 
 		$submission_action   = isset( $_POST['wp_bulk_mail_compose_action'] ) ? sanitize_key( wp_unslash( $_POST['wp_bulk_mail_compose_action'] ) ) : 'save';
 		$selected_recipients = $this->get_recipients_by_ids( $draft['recipient_ids'] );

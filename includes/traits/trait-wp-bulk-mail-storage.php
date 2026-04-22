@@ -17,6 +17,11 @@ trait WP_Bulk_Mail_Storage_Trait {
 				'driver'                  => 'wordpress',
 				'from_email'              => get_option( 'admin_email' ),
 				'from_name'               => get_bloginfo( 'name' ),
+				'site_name'               => get_bloginfo( 'name' ),
+				'site_url'                => home_url( '/' ),
+				'company_logo_url'        => '',
+				'company_address'         => '',
+				'company_phone'           => '',
 				'bounce_tracking_enabled' => 0,
 				'bounce_imap_host'        => 'imap.gmail.com',
 				'bounce_imap_port'        => 993,
@@ -233,6 +238,7 @@ trait WP_Bulk_Mail_Storage_Trait {
 			attempts SMALLINT(5) UNSIGNED NOT NULL DEFAULT 0,
 			scheduled_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			locked_at DATETIME NULL DEFAULT NULL,
+			lock_token VARCHAR(64) NOT NULL DEFAULT '',
 			sent_at DATETIME NULL DEFAULT NULL,
 			error_message TEXT NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -241,7 +247,8 @@ trait WP_Bulk_Mail_Storage_Trait {
 			KEY campaign_id (campaign_id),
 			KEY status (status),
 			KEY status_scheduled (status, scheduled_at),
-			KEY locked_at (locked_at)
+			KEY locked_at (locked_at),
+			KEY lock_token (lock_token)
 		) {$charset_collate};";
 
 		dbDelta( $sql );
@@ -326,27 +333,29 @@ trait WP_Bulk_Mail_Storage_Trait {
 	 * @return array[]
 	 */
 	private static function get_default_template_definitions() {
+		$logo_block = "<p style=\"margin:0 0 18px;\"><img src=\"{{company_logo_url}}\" alt=\"{{site_name}}\" style=\"max-width:180px;height:auto;display:block;\" /></p>";
+
 		return array(
 			array(
 				'name'        => __( 'Welcome Announcement', 'wp-bulk-mail' ),
 				'slug'        => 'welcome-announcement',
 				'description' => __( 'A friendly introduction email for onboarding, launches, or general announcements.', 'wp-bulk-mail' ),
 				'subject'     => __( 'Welcome to {{site_name}}', 'wp-bulk-mail' ),
-				'body'        => "<p>Hello {{recipient_name}},</p><p>Welcome to {{site_name}}. We are excited to have you with us and wanted to share this quick update with you.</p><p>Thank you for staying connected.</p><p>Regards,<br>{{site_name}}</p>",
+				'body'        => $logo_block . "<p>Hello {{recipient_name}},</p><p>Welcome to {{site_name}}. We are excited to have you with us and wanted to share this quick update with you.</p><p>Thank you for staying connected.</p><p>Regards,<br>{{site_name}}<br><a href=\"{{site_url}}\">{{site_url}}</a></p>",
 			),
 			array(
 				'name'        => __( 'Product Update', 'wp-bulk-mail' ),
 				'slug'        => 'product-update',
 				'description' => __( 'Useful when you want to share new features, release notes, or a recent improvement.', 'wp-bulk-mail' ),
 				'subject'     => __( 'New update from {{site_name}}', 'wp-bulk-mail' ),
-				'body'        => "<p>Hello {{recipient_name}},</p><p>We have a fresh update to share with you. Here are the highlights:</p><ul><li>Feature improvement one</li><li>Feature improvement two</li><li>Anything else your audience should know</li></ul><p>You can always visit {{site_url}} for more details.</p><p>Thanks,<br>{{site_name}}</p>",
+				'body'        => $logo_block . "<p>Hello {{recipient_name}},</p><p>We have a fresh update to share with you. Here are the highlights:</p><ul><li>Feature improvement one</li><li>Feature improvement two</li><li>Anything else your audience should know</li></ul><p>You can always visit {{site_url}} for more details.</p><p>Thanks,<br>{{site_name}}</p>",
 			),
 			array(
 				'name'        => __( 'Special Offer', 'wp-bulk-mail' ),
 				'slug'        => 'special-offer',
 				'description' => __( 'A simple promotional template for campaigns, offers, and limited-time messages.', 'wp-bulk-mail' ),
 				'subject'     => __( 'A special offer for you from {{site_name}}', 'wp-bulk-mail' ),
-				'body'        => "<p>Hello {{recipient_name}},</p><p>We have prepared a special offer just for you. This is a great place to explain the value, offer details, and any deadline you want to highlight.</p><p><strong>Offer ends soon</strong>, so make sure to take a look.</p><p>Best,<br>{{site_name}}</p>",
+				'body'        => $logo_block . "<p>Hello {{recipient_name}},</p><p>We have prepared a special offer just for you. This is a great place to explain the value, offer details, and any deadline you want to highlight.</p><p><strong>Offer ends soon</strong>, so make sure to take a look.</p><p>Best,<br>{{site_name}}</p>",
 			),
 		);
 	}
@@ -373,10 +382,14 @@ trait WP_Bulk_Mail_Storage_Trait {
 				$wpdb->update(
 					$table_name,
 					array(
+						'name'        => $template['name'],
+						'description' => $template['description'],
+						'subject'     => $template['subject'],
+						'body'        => $template['body'],
 						'is_default' => 1,
 					),
 					array( 'id' => $existing_id ),
-					array( '%d' ),
+					array( '%s', '%s', '%s', '%s', '%d' ),
 					array( '%d' )
 				);
 				continue;

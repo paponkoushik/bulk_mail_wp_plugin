@@ -75,15 +75,27 @@ trait WP_Bulk_Mail_Templates_Trait {
 			),
 			array(
 				'token'       => '{{site_name}}',
-				'description' => __( 'Your WordPress site name.', 'wp-bulk-mail' ),
+				'description' => __( 'Your editable site or company name from Bulk Mail settings.', 'wp-bulk-mail' ),
 			),
 			array(
 				'token'       => '{{site_url}}',
-				'description' => __( 'Your site URL.', 'wp-bulk-mail' ),
+				'description' => __( 'Your editable site or company URL from Bulk Mail settings.', 'wp-bulk-mail' ),
 			),
 			array(
 				'token'       => '{{unsubscribe_url}}',
 				'description' => __( 'A public unsubscribe link unique to the recipient.', 'wp-bulk-mail' ),
+			),
+			array(
+				'token'       => '{{company_logo_url}}',
+				'description' => __( 'Public company or site logo image URL from Bulk Mail settings.', 'wp-bulk-mail' ),
+			),
+			array(
+				'token'       => '{{company_address}}',
+				'description' => __( 'Optional company address from Bulk Mail settings.', 'wp-bulk-mail' ),
+			),
+			array(
+				'token'       => '{{company_phone}}',
+				'description' => __( 'Optional company phone from Bulk Mail settings.', 'wp-bulk-mail' ),
 			),
 		);
 	}

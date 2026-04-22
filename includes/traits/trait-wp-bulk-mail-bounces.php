@@ -48,7 +48,7 @@ trait WP_Bulk_Mail_Bounces_Trait {
 	 * @return bool
 	 */
 	public function is_imap_available() {
-		return function_exists( 'stream_socket_client' ) || ( function_exists( 'imap_open' ) && function_exists( 'imap_search' ) && function_exists( 'imap_body' ) );
+		return function_exists( 'imap_open' ) && function_exists( 'imap_search' ) && function_exists( 'imap_body' ) && function_exists( 'imap_fetchheader' ) && function_exists( 'imap_close' );
 	}
 
 	/**
@@ -285,9 +285,9 @@ trait WP_Bulk_Mail_Bounces_Trait {
 		$flags = '/imap';
 
 		if ( 'ssl' === $config['encryption'] ) {
-			$flags .= '/ssl/novalidate-cert';
+			$flags .= '/ssl/validate-cert';
 		} elseif ( 'tls' === $config['encryption'] ) {
-			$flags .= '/tls/novalidate-cert';
+			$flags .= '/tls/validate-cert';
 		} else {
 			$flags .= '/notls';
 		}
@@ -299,6 +299,47 @@ trait WP_Bulk_Mail_Bounces_Trait {
 			$flags,
 			$config['folder']
 		);
+	}
+
+	/**
+	 * Open the configured IMAP mailbox with certificate validation enabled.
+	 *
+	 * @param array $config Mailbox config.
+	 * @return resource|WP_Error
+	 */
+	private function open_bounce_imap_stream( $config ) {
+		$mailbox = $this->build_bounce_imap_mailbox_string( $config );
+		$stream  = @imap_open( $mailbox, $config['username'], $config['password'], OP_READONLY );
+
+		if ( false === $stream ) {
+			$error = function_exists( 'imap_last_error' ) ? imap_last_error() : '';
+
+			if ( function_exists( 'imap_errors' ) ) {
+				imap_errors();
+			}
+
+			return new WP_Error( 'bounce_imap_open_failed', ! empty( $error ) ? wp_strip_all_tags( (string) $error ) : __( 'Could not open the IMAP mailbox connection.', 'wp-bulk-mail' ) );
+		}
+
+		return $stream;
+	}
+
+	/**
+	 * Fetch one IMAP message as parsed header/body data.
+	 *
+	 * @param resource $imap_stream Open IMAP stream.
+	 * @param int      $message_number IMAP message number.
+	 * @return array|WP_Error
+	 */
+	private function fetch_imap_message( $imap_stream, $message_number ) {
+		$raw_headers = imap_fetchheader( $imap_stream, absint( $message_number ), FT_PREFETCHTEXT );
+		$body        = imap_body( $imap_stream, absint( $message_number ), FT_PEEK );
+
+		if ( false === $raw_headers || false === $body ) {
+			return new WP_Error( 'bounce_imap_fetch_failed', __( 'Could not fetch one mailbox message during bounce sync.', 'wp-bulk-mail' ) );
+		}
+
+		return $this->raw_imap_parse_message( $raw_headers . "\r\n" . $body );
 	}
 
 	/**
@@ -435,6 +476,10 @@ trait WP_Bulk_Mail_Bounces_Trait {
 
 		if ( preg_match( '/X-WBM-Recipient-ID:\s*(\d+)/i', $body, $matches ) ) {
 			$recipient_id = absint( $matches[1] );
+		}
+
+		if ( preg_match( '/X-WBM-Recipient-Email:\s*([^\s<>]+@[^\s<>]+)/i', $body, $matches ) ) {
+			$candidate_emails[] = sanitize_email( $matches[1] );
 		}
 
 		$email_patterns = array(
@@ -759,57 +804,76 @@ trait WP_Bulk_Mail_Bounces_Trait {
 				$wpdb->prepare(
 					"SELECT id, campaign_id, recipient_id, recipient_email, status
 					FROM {$queue_table}
-					WHERE id = %d
+					WHERE id = %d AND status = %s
 					LIMIT 1",
-					(int) $parsed['queue_id']
+					(int) $parsed['queue_id'],
+					'sent'
 				),
 				ARRAY_A
 			);
 
-			if ( is_array( $row ) ) {
+			if (
+				is_array( $row ) &&
+				( empty( $parsed['campaign_id'] ) || (int) $parsed['campaign_id'] === (int) $row['campaign_id'] ) &&
+				( empty( $parsed['recipient_id'] ) || (int) $parsed['recipient_id'] === (int) $row['recipient_id'] )
+			) {
 				return $row;
 			}
+		}
+
+		$candidates  = array();
+		$where_parts = array( 'status = %s', 'sent_at IS NOT NULL', 'sent_at >= %s' );
+		$query_args  = array(
+			'sent',
+			wp_date( 'Y-m-d H:i:s', time() - ( DAY_IN_SECONDS * 30 ) ),
+		);
+
+		if ( ! empty( $parsed['campaign_id'] ) ) {
+			$where_parts[] = 'campaign_id = %d';
+			$query_args[]  = (int) $parsed['campaign_id'];
 		}
 
 		if ( ! empty( $parsed['recipient_id'] ) ) {
-			$row = $wpdb->get_row(
-				$wpdb->prepare(
-					"SELECT id, campaign_id, recipient_id, recipient_email, status
-					FROM {$queue_table}
-					WHERE recipient_id = %d AND status = %s
-					ORDER BY sent_at DESC, id DESC
-					LIMIT 1",
-					(int) $parsed['recipient_id'],
-					'sent'
-				),
-				ARRAY_A
-			);
-
-			if ( is_array( $row ) ) {
-				return $row;
-			}
+			$where_parts[] = 'recipient_id = %d';
+			$query_args[]  = (int) $parsed['recipient_id'];
 		}
 
-		foreach ( (array) $parsed['candidate_emails'] as $candidate_email ) {
-			$row = $wpdb->get_row(
-				$wpdb->prepare(
-					"SELECT id, campaign_id, recipient_id, recipient_email, status
-					FROM {$queue_table}
-					WHERE recipient_email = %s AND status = %s
-					ORDER BY sent_at DESC, id DESC
-					LIMIT 1",
-					$candidate_email,
-					'sent'
-				),
-				ARRAY_A
-			);
+		$candidate_emails = array_values(
+			array_unique(
+				array_filter(
+					array_map( 'sanitize_email', (array) $parsed['candidate_emails'] ),
+					'is_email'
+				)
+			)
+		);
 
-			if ( is_array( $row ) ) {
-				return $row;
-			}
+		if ( ! empty( $candidate_emails ) ) {
+			$email_placeholders = implode( ',', array_fill( 0, count( $candidate_emails ), '%s' ) );
+			$where_parts[]      = "recipient_email IN ({$email_placeholders})";
+			$query_args         = array_merge( $query_args, $candidate_emails );
 		}
 
-		return null;
+		if ( empty( $parsed['recipient_id'] ) && empty( $candidate_emails ) ) {
+			return null;
+		}
+
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT id, campaign_id, recipient_id, recipient_email, status
+				FROM {$queue_table}
+				WHERE " . implode( ' AND ', $where_parts ) . '
+				ORDER BY sent_at DESC, id DESC
+				LIMIT 5',
+				$query_args
+			),
+			ARRAY_A
+		);
+
+		foreach ( (array) $rows as $row ) {
+			$candidates[ (int) $row['id'] ] = $row;
+		}
+
+		return 1 === count( $candidates ) ? reset( $candidates ) : null;
 	}
 
 	/**
@@ -834,18 +898,24 @@ trait WP_Bulk_Mail_Bounces_Trait {
 			array(
 				'status'        => 'failed',
 				'locked_at'     => null,
+				'lock_token'    => '',
 				'sent_at'       => null,
 				'error_message' => sanitize_text_field( '[Bounce Sync] ' . $parsed['error_message'] ),
 			),
 			array(
-				'id' => $queue_id,
+				'id'     => $queue_id,
+				'status' => 'sent',
 			),
-			array( '%s', '%s', '%s', '%s' ),
-			array( '%d' )
+			array( '%s', '%s', '%s', '%s', '%s' ),
+			array( '%d', '%s' )
 		);
 
 		if ( false === $updated ) {
 			return new WP_Error( 'bounce_update_failed', __( 'Bounce message was found, but the queue row could not be updated.', 'wp-bulk-mail' ) );
+		}
+
+		if ( 0 === (int) $updated ) {
+			return new WP_Error( 'bounce_queue_item_no_longer_sent', __( 'Bounce was matched, but the queue row was no longer eligible for a sent-to-failed update.', 'wp-bulk-mail' ) );
 		}
 
 		$this->update_campaign_statuses( array( $campaign_id ) );
@@ -898,27 +968,27 @@ trait WP_Bulk_Mail_Bounces_Trait {
 			return new WP_Error( 'bounce_tracking_not_configured', __( 'Bounce mailbox settings are incomplete. Add IMAP host, username, and password first.', 'wp-bulk-mail' ) );
 		}
 
-		$connection = $this->raw_imap_open_connection( $config );
+		$imap_stream = $this->open_bounce_imap_stream( $config );
 
-		if ( is_wp_error( $connection ) ) {
-			return $connection;
+		if ( is_wp_error( $imap_stream ) ) {
+			return $imap_stream;
 		}
 
 		$state             = $this->get_bounce_state();
 		$processed_keys    = $state['processed_keys'];
-		$message_numbers   = $this->raw_imap_search_recent_messages( $connection, $state['last_synced_at'] );
+		$message_numbers   = $this->search_recent_bounce_messages( $imap_stream, $state['last_synced_at'] );
 		$scanned_count     = 0;
 		$matched_count     = 0;
 		$updated_campaigns = array();
 
 		if ( is_wp_error( $message_numbers ) ) {
-			fclose( $connection['stream'] );
+			imap_close( $imap_stream );
 
 			return $message_numbers;
 		}
 
 		foreach ( $message_numbers as $message_number ) {
-			$message_data = $this->raw_imap_fetch_message( $connection, $message_number );
+			$message_data = $this->fetch_imap_message( $imap_stream, $message_number );
 
 			if ( is_wp_error( $message_data ) ) {
 				continue;
@@ -955,7 +1025,7 @@ trait WP_Bulk_Mail_Bounces_Trait {
 			}
 		}
 
-		@fclose( $connection['stream'] );
+		imap_close( $imap_stream );
 
 		if ( ! empty( $updated_campaigns ) ) {
 			$this->update_campaign_statuses( $updated_campaigns );

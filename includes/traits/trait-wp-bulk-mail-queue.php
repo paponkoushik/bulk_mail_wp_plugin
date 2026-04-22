@@ -470,6 +470,12 @@ trait WP_Bulk_Mail_Queue_Trait {
 	 * @return string
 	 */
 	private function replace_template_tokens( $content, $queue_item ) {
+		$settings      = $this->get_settings();
+		$site_name     = ! empty( $settings['site_name'] ) ? $settings['site_name'] : ( ! empty( $settings['company_name'] ) ? $settings['company_name'] : get_bloginfo( 'name' ) );
+		$site_url      = ! empty( $settings['site_url'] ) ? $settings['site_url'] : ( ! empty( $settings['company_url'] ) ? $settings['company_url'] : home_url( '/' ) );
+		$company_logo  = ! empty( $settings['company_logo_url'] ) ? esc_url_raw( $settings['company_logo_url'] ) : '';
+		$company_addr  = ! empty( $settings['company_address'] ) ? $settings['company_address'] : '';
+		$company_phone = ! empty( $settings['company_phone'] ) ? $settings['company_phone'] : '';
 		$recipient_name = isset( $queue_item['recipient_name'] ) && '' !== trim( (string) $queue_item['recipient_name'] )
 			? $queue_item['recipient_name']
 			: __( 'there', 'wp-bulk-mail' );
@@ -477,8 +483,13 @@ trait WP_Bulk_Mail_Queue_Trait {
 		$replacements = array(
 			'{{recipient_name}}'  => $recipient_name,
 			'{{recipient_email}}' => isset( $queue_item['recipient_email'] ) ? $queue_item['recipient_email'] : '',
-			'{{site_name}}'       => get_bloginfo( 'name' ),
-			'{{site_url}}'        => home_url( '/' ),
+			'{{site_name}}'       => $site_name,
+			'{{site_url}}'        => $site_url,
+			'{{company_logo_url}}' => $company_logo,
+			'{{company_name}}'    => $site_name,
+			'{{company_url}}'     => $site_url,
+			'{{company_address}}' => $company_addr,
+			'{{company_phone}}'   => $company_phone,
 			'{{unsubscribe_url}}' => $this->get_recipient_unsubscribe_url(
 				array(
 					'id'                => isset( $queue_item['recipient_id'] ) ? (int) $queue_item['recipient_id'] : 0,
@@ -510,7 +521,7 @@ trait WP_Bulk_Mail_Queue_Trait {
 		$wpdb->query(
 			$wpdb->prepare(
 				"UPDATE {$table_name}
-				SET status = %s, locked_at = NULL
+				SET status = %s, locked_at = NULL, lock_token = ''
 				WHERE status = %s AND locked_at IS NOT NULL AND locked_at < %s",
 				'pending',
 				'processing',
@@ -536,36 +547,24 @@ trait WP_Bulk_Mail_Queue_Trait {
 			return array();
 		}
 
-		$item_ids = $wpdb->get_col(
+		$locked_at  = current_time( 'mysql' );
+		$lock_token = wp_generate_password( 48, false, false );
+
+		$wpdb->query(
 			$wpdb->prepare(
-				"SELECT id
-				FROM {$queue_table}
+				"UPDATE {$queue_table}
+				SET status = %s, locked_at = %s, lock_token = %s
 				WHERE status = %s AND scheduled_at <= %s
 				ORDER BY id ASC
 				LIMIT %d",
+				'processing',
+				$locked_at,
+				$lock_token,
 				'pending',
 				current_time( 'mysql' ),
 				$limit
 			)
 		);
-
-		if ( empty( $item_ids ) ) {
-			return array();
-		}
-
-		$placeholders = implode( ',', array_fill( 0, count( $item_ids ), '%d' ) );
-		$locked_at    = current_time( 'mysql' );
-
-		$wpdb->query(
-			$wpdb->prepare(
-				"UPDATE {$queue_table}
-				SET status = %s, locked_at = %s
-				WHERE status = 'pending' AND id IN ({$placeholders})",
-				array_merge( array( 'processing', $locked_at ), $item_ids )
-			)
-		);
-
-		$select_args = array_merge( array( 'processing', $locked_at ), $item_ids );
 
 		return $wpdb->get_results(
 			$wpdb->prepare(
@@ -573,9 +572,11 @@ trait WP_Bulk_Mail_Queue_Trait {
 				FROM {$queue_table} q
 				INNER JOIN {$campaigns_table} c ON c.id = q.campaign_id
 				LEFT JOIN " . self::get_recipients_table_name() . " r ON r.id = q.recipient_id
-				WHERE q.status = %s AND q.locked_at = %s AND q.id IN ({$placeholders})
+				WHERE q.status = %s AND q.locked_at = %s AND q.lock_token = %s
 				ORDER BY q.id ASC",
-				$select_args
+				'processing',
+				$locked_at,
+				$lock_token
 			),
 			ARRAY_A
 		);
@@ -610,10 +611,11 @@ trait WP_Bulk_Mail_Queue_Trait {
 						'status'        => 'failed',
 						'attempts'      => $attempts,
 						'locked_at'     => null,
+						'lock_token'    => '',
 						'error_message' => __( 'Recipient unsubscribed before this message was sent.', 'wp-bulk-mail' ),
 					),
 					array( 'id' => (int) $queue_item['id'] ),
-					array( '%s', '%d', '%s', '%s' ),
+					array( '%s', '%d', '%s', '%s', '%s' ),
 					array( '%d' )
 				);
 
@@ -641,11 +643,12 @@ trait WP_Bulk_Mail_Queue_Trait {
 					'status'        => 'sent',
 					'attempts'      => $attempts,
 					'locked_at'     => null,
+					'lock_token'    => '',
 					'sent_at'       => current_time( 'mysql' ),
 					'error_message' => '',
 				),
 				array( 'id' => (int) $queue_item['id'] ),
-				array( '%s', '%d', '%s', '%s', '%s' ),
+				array( '%s', '%d', '%s', '%s', '%s', '%s' ),
 				array( '%d' )
 			);
 
@@ -658,9 +661,10 @@ trait WP_Bulk_Mail_Queue_Trait {
 			'status'        => $next_status,
 			'attempts'      => $attempts,
 			'locked_at'     => null,
+			'lock_token'    => '',
 			'error_message' => $error_message,
 		);
-		$formats       = array( '%s', '%d', '%s', '%s' );
+		$formats       = array( '%s', '%d', '%s', '%s', '%s' );
 
 		if ( 'pending' === $next_status ) {
 			$update_data['scheduled_at'] = wp_date( 'Y-m-d H:i:s', time() + ( self::QUEUE_RETRY_DELAY * $attempts ) );

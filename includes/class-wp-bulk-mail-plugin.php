@@ -23,6 +23,7 @@ class WP_Bulk_Mail_Plugin {
 	const STORAGE_VERSION_OPTION = 'wp_bulk_mail_storage_version';
 	const MENU_SLUG              = 'wp-bulk-mail';
 	const SETTINGS_MENU_SLUG     = 'wp-bulk-mail-settings';
+	const COMPANY_INFO_MENU_SLUG = 'wp-bulk-mail-company-info';
 	const CAMPAIGNS_MENU_SLUG    = 'wp-bulk-mail-campaigns';
 	const COMPOSE_MENU_SLUG      = 'wp-bulk-mail-compose';
 	const RECIPIENTS_MENU_SLUG   = 'wp-bulk-mail-recipients';

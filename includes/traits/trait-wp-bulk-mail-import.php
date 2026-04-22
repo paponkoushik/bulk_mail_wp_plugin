@@ -7,6 +7,40 @@ if ( ! defined( 'ABSPATH' ) ) {
 trait WP_Bulk_Mail_Import_Trait {
 
 	/**
+	 * Delete one stored import file when it lives inside the uploads directory.
+	 *
+	 * @param string $file_path Stored file path.
+	 * @return void
+	 */
+	private function cleanup_import_file( $file_path ) {
+		$file_path = (string) $file_path;
+
+		if ( '' === $file_path || ! file_exists( $file_path ) ) {
+			return;
+		}
+
+		$uploads = wp_get_upload_dir();
+
+		if ( empty( $uploads['basedir'] ) ) {
+			return;
+		}
+
+		$base_dir       = wp_normalize_path( realpath( $uploads['basedir'] ) ?: $uploads['basedir'] );
+		$resolved_path  = wp_normalize_path( realpath( $file_path ) ?: $file_path );
+
+		if ( 0 !== strpos( $resolved_path, trailingslashit( $base_dir ) ) && $resolved_path !== $base_dir ) {
+			return;
+		}
+
+		if ( function_exists( 'wp_delete_file' ) ) {
+			wp_delete_file( $resolved_path );
+			return;
+		}
+
+		@unlink( $resolved_path );
+	}
+
+	/**
 	 * Check whether there are any unfinished import jobs.
 	 *
 	 * @return bool
@@ -261,6 +295,14 @@ trait WP_Bulk_Mail_Import_Trait {
 	private function mark_import_job_failed( $job_id, $message ) {
 		global $wpdb;
 
+		$job = $wpdb->get_row(
+			$wpdb->prepare(
+				'SELECT file_path FROM ' . self::get_import_jobs_table_name() . ' WHERE id = %d LIMIT 1',
+				absint( $job_id )
+			),
+			ARRAY_A
+		);
+
 		$wpdb->update(
 			self::get_import_jobs_table_name(),
 			array(
@@ -273,6 +315,10 @@ trait WP_Bulk_Mail_Import_Trait {
 			array( '%s', '%s', '%s', '%s' ),
 			array( '%d' )
 		);
+
+		if ( is_array( $job ) && ! empty( $job['file_path'] ) ) {
+			$this->cleanup_import_file( $job['file_path'] );
+		}
 	}
 
 	/**
@@ -388,6 +434,10 @@ trait WP_Bulk_Mail_Import_Trait {
 			$formats,
 			array( '%d' )
 		);
+
+		if ( $completed ) {
+			$this->cleanup_import_file( $file_path );
+		}
 
 		if ( $this->has_open_import_jobs() && ! $this->is_background_action_scheduled( self::IMPORT_PROCESS_HOOK ) ) {
 			$this->schedule_background_action( self::IMPORT_PROCESS_HOOK );
@@ -722,6 +772,7 @@ trait WP_Bulk_Mail_Import_Trait {
 		$result = $this->create_import_job( $file_name, $uploaded['file'], $file_ext );
 
 		if ( is_wp_error( $result ) ) {
+			$this->cleanup_import_file( $uploaded['file'] );
 			$this->set_recipients_notice( 'error', $result->get_error_message() );
 			wp_safe_redirect( $this->get_recipients_page_url( $redirect_args ) );
 			exit;

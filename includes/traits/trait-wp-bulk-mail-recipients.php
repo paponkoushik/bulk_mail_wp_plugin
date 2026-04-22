@@ -674,7 +674,7 @@ trait WP_Bulk_Mail_Recipients_Trait {
 				}
 			)
 		);
-		update_option( self::COMPOSE_OPTION_KEY, $draft, false );
+		$this->save_compose_draft( $draft );
 
 		$this->set_recipients_notice( 'success', __( 'Recipient deleted.', 'wp-bulk-mail' ) );
 		wp_safe_redirect( $this->get_recipients_page_url( $redirect_args ) );

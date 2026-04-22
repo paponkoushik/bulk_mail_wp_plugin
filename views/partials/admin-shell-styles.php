@@ -46,6 +46,7 @@ define( 'WP_BULK_MAIL_ADMIN_SHELL_STYLES_LOADED', true );
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: 18px;
+		align-items: start;
 	}
 
 	.wp-bulk-mail-admin-columns--3 {
@@ -54,6 +55,11 @@ define( 'WP_BULK_MAIL_ADMIN_SHELL_STYLES_LOADED', true );
 
 	.wp-bulk-mail-admin-columns--sidebar {
 		grid-template-columns: minmax(0, 1.4fr) minmax(300px, 0.9fr);
+	}
+
+	.wp-bulk-mail-admin-stack--sticky {
+		position: sticky;
+		top: 46px;
 	}
 
 	.wp-bulk-mail-admin-hero,
@@ -127,6 +133,13 @@ define( 'WP_BULK_MAIL_ADMIN_SHELL_STYLES_LOADED', true );
 		padding: 22px;
 	}
 
+	.wp-bulk-mail-admin-card.is-tinted {
+		background:
+			radial-gradient(circle at top right, rgba(37, 99, 235, 0.08), transparent 34%),
+			radial-gradient(circle at bottom left, rgba(14, 165, 233, 0.08), transparent 28%),
+			var(--wbm-card-bg);
+	}
+
 	.wp-bulk-mail-admin-card-header {
 		display: flex;
 		align-items: flex-start;
@@ -168,6 +181,95 @@ define( 'WP_BULK_MAIL_ADMIN_SHELL_STYLES_LOADED', true );
 	.wp-bulk-mail-admin-copy {
 		margin: 8px 0 0;
 		font-size: 13px;
+	}
+
+	.wp-bulk-mail-admin-card-header > div {
+		min-width: 0;
+	}
+
+	.wp-bulk-mail-admin-section-anchor {
+		scroll-margin-top: 72px;
+	}
+
+	.wp-bulk-mail-admin-mini-grid {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 12px;
+	}
+
+	.wp-bulk-mail-admin-mini-stat {
+		padding: 14px 15px;
+		border: 1px solid #e5eef9;
+		border-radius: 16px;
+		background: rgba(255, 255, 255, 0.72);
+	}
+
+	.wp-bulk-mail-admin-mini-stat strong,
+	.wp-bulk-mail-admin-mini-stat span {
+		display: block;
+	}
+
+	.wp-bulk-mail-admin-mini-stat strong {
+		font-size: 20px;
+		line-height: 1.1;
+		margin-bottom: 6px;
+	}
+
+	.wp-bulk-mail-admin-mini-stat span {
+		font-size: 12px;
+		color: var(--wbm-muted);
+	}
+
+	.wp-bulk-mail-admin-status-list {
+		display: grid;
+		gap: 10px;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.wp-bulk-mail-admin-status-item {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 14px;
+		padding: 12px 14px;
+		border: 1px solid #e5eef9;
+		border-radius: 16px;
+		background: rgba(255, 255, 255, 0.72);
+	}
+
+	.wp-bulk-mail-admin-status-item strong,
+	.wp-bulk-mail-admin-status-item span {
+		display: block;
+	}
+
+	.wp-bulk-mail-admin-status-item strong {
+		font-size: 13px;
+		margin-bottom: 2px;
+	}
+
+	.wp-bulk-mail-admin-status-item span {
+		font-size: 12px;
+		color: var(--wbm-muted);
+	}
+
+	.wp-bulk-mail-admin-token-cloud {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+
+	.wp-bulk-mail-admin-token {
+		display: inline-flex;
+		align-items: center;
+		padding: 7px 10px;
+		border-radius: 999px;
+		background: #f4f8ff;
+		border: 1px solid #d7e3f1;
+		color: #1d4d8f;
+		font-size: 12px;
+		font-weight: 700;
 	}
 
 	.wp-bulk-mail-admin-shell p.description {
@@ -251,6 +353,35 @@ define( 'WP_BULK_MAIL_ADMIN_SHELL_STYLES_LOADED', true );
 		margin-bottom: 8px;
 	}
 
+	.wp-bulk-mail-admin-shell .form-table.wp-bulk-mail-settings-table {
+		margin: 10px 0 0;
+	}
+
+	.wp-bulk-mail-admin-shell .form-table.wp-bulk-mail-settings-table tbody {
+		display: grid;
+		gap: 14px;
+	}
+
+	.wp-bulk-mail-admin-shell .form-table.wp-bulk-mail-settings-table tr {
+		display: grid;
+		grid-template-columns: minmax(170px, 220px) minmax(0, 1fr);
+		gap: 16px;
+		align-items: start;
+		padding: 16px 18px;
+		border: 1px solid #e5eef9;
+		border-radius: 18px;
+		background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 251, 255, 0.9));
+		box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+	}
+
+	.wp-bulk-mail-admin-shell .form-table.wp-bulk-mail-settings-table th,
+	.wp-bulk-mail-admin-shell .form-table.wp-bulk-mail-settings-table td {
+		display: block;
+		padding: 0;
+		margin: 0;
+		width: auto;
+	}
+
 	.wp-bulk-mail-admin-shell .form-table th {
 		width: 220px;
 		padding: 18px 16px 18px 0;
@@ -297,6 +428,18 @@ define( 'WP_BULK_MAIL_ADMIN_SHELL_STYLES_LOADED', true );
 		color: var(--wbm-text);
 	}
 
+	.wp-bulk-mail-admin-shell .form-table.wp-bulk-mail-settings-table input[type="text"],
+	.wp-bulk-mail-admin-shell .form-table.wp-bulk-mail-settings-table input[type="email"],
+	.wp-bulk-mail-admin-shell .form-table.wp-bulk-mail-settings-table input[type="password"],
+	.wp-bulk-mail-admin-shell .form-table.wp-bulk-mail-settings-table input[type="number"],
+	.wp-bulk-mail-admin-shell .form-table.wp-bulk-mail-settings-table input[type="search"],
+	.wp-bulk-mail-admin-shell .form-table.wp-bulk-mail-settings-table input[type="url"],
+	.wp-bulk-mail-admin-shell .form-table.wp-bulk-mail-settings-table select,
+	.wp-bulk-mail-admin-shell .form-table.wp-bulk-mail-settings-table textarea {
+		min-height: 46px;
+		border-radius: 14px;
+	}
+
 	.wp-bulk-mail-admin-shell input[type="text"]:focus,
 	.wp-bulk-mail-admin-shell input[type="email"]:focus,
 	.wp-bulk-mail-admin-shell input[type="password"]:focus,
@@ -317,6 +460,13 @@ define( 'WP_BULK_MAIL_ADMIN_SHELL_STYLES_LOADED', true );
 	.wp-bulk-mail-admin-shell textarea.large-text,
 	.wp-bulk-mail-admin-shell input.large-text {
 		width: 100%;
+	}
+
+	.wp-bulk-mail-admin-shell .form-table.wp-bulk-mail-settings-table label {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		font-weight: 600;
 	}
 
 	.wp-bulk-mail-admin-shell input.regular-text,
@@ -433,6 +583,47 @@ define( 'WP_BULK_MAIL_ADMIN_SHELL_STYLES_LOADED', true );
 		color: var(--wbm-muted);
 	}
 
+	.wp-bulk-mail-media-field {
+		display: grid;
+		gap: 10px;
+	}
+
+	.wp-bulk-mail-media-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+
+	.wp-bulk-mail-media-preview-wrap {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		min-height: 52px;
+	}
+
+	.wp-bulk-mail-media-preview {
+		max-width: 180px;
+		height: auto;
+		border-radius: 16px;
+		border: 1px solid #d7e3f1;
+		background: #fff;
+		padding: 6px;
+		box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
+	}
+
+	.wp-bulk-mail-admin-footer-bar {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 18px;
+	}
+
+	.wp-bulk-mail-admin-footer-bar .button.button-primary {
+		min-width: 180px;
+		height: 46px;
+	}
+
 	.wp-bulk-mail-admin-empty {
 		padding: 20px;
 		border: 1px dashed var(--wbm-border-strong);
@@ -448,6 +639,15 @@ define( 'WP_BULK_MAIL_ADMIN_SHELL_STYLES_LOADED', true );
 		align-items: center;
 		justify-content: space-between;
 		gap: 12px;
+	}
+
+	.wp-bulk-mail-section-actions {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		padding-top: 6px;
 	}
 
 	.wp-bulk-mail-admin-search-form {
@@ -719,6 +919,10 @@ define( 'WP_BULK_MAIL_ADMIN_SHELL_STYLES_LOADED', true );
 		.wp-bulk-mail-admin-columns--sidebar {
 			grid-template-columns: 1fr;
 		}
+
+		.wp-bulk-mail-admin-stack--sticky {
+			position: static;
+		}
 	}
 
 	@media screen and (max-width: 782px) {
@@ -733,6 +937,15 @@ define( 'WP_BULK_MAIL_ADMIN_SHELL_STYLES_LOADED', true );
 			display: block;
 			width: 100%;
 			padding-right: 0;
+		}
+
+		.wp-bulk-mail-admin-shell .form-table.wp-bulk-mail-settings-table tr {
+			grid-template-columns: 1fr;
+			padding: 14px;
+		}
+
+		.wp-bulk-mail-admin-mini-grid {
+			grid-template-columns: 1fr;
 		}
 
 		.wp-bulk-mail-admin-toolbar,

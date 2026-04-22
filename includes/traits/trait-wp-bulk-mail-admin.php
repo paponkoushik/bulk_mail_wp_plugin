@@ -63,6 +63,15 @@ trait WP_Bulk_Mail_Admin_Trait {
 
 		add_submenu_page(
 			self::MENU_SLUG,
+			__( 'Company Info', 'wp-bulk-mail' ),
+			__( 'Company Info', 'wp-bulk-mail' ),
+			'manage_options',
+			self::COMPANY_INFO_MENU_SLUG,
+			array( $this, 'render_company_info_page' )
+		);
+
+		add_submenu_page(
+			self::MENU_SLUG,
 			__( 'Campaigns', 'wp-bulk-mail' ),
 			__( 'Campaigns', 'wp-bulk-mail' ),
 			'manage_options',

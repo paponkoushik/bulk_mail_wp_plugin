@@ -160,6 +160,15 @@ class WP_Bulk_Mail_SMTP_Driver extends WP_Bulk_Mail_Driver {
 			);
 		}
 
+		if ( ! empty( $settings['smtp_auth'] ) && empty( $settings['smtp_password'] ) ) {
+			add_settings_error(
+				WP_Bulk_Mail_Plugin::OPTION_KEY,
+				'smtp_password_required',
+				__( 'SMTP authentication is enabled, but the password is empty.', 'wp-bulk-mail' ),
+				'warning'
+			);
+		}
+
 		return $settings;
 	}
 
