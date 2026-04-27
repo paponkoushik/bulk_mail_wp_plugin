@@ -198,6 +198,7 @@ trait WP_Bulk_Mail_Dashboard_Trait {
 			'bounce_mail'        => 0,
 			'sent_mail'          => 0,
 			'mail_cant_send'     => 0,
+			'import_invalid_addresses' => 0,
 			'wrong_mail_address' => 0,
 			'total_send_mail'    => 0,
 			'spam_mail'          => 0,
@@ -252,8 +253,7 @@ trait WP_Bulk_Mail_Dashboard_Trait {
 		}
 
 		if ( $this->table_exists( $imports_table ) ) {
-			$invalid_import_total = (int) $wpdb->get_var( "SELECT COALESCE(SUM(invalid_count), 0) FROM {$imports_table}" );
-			$stats['wrong_mail_address'] += $invalid_import_total;
+			$stats['import_invalid_addresses'] = (int) $wpdb->get_var( "SELECT COALESCE(SUM(invalid_count), 0) FROM {$imports_table}" );
 		}
 
 		if ( $this->table_exists( $campaigns_table ) ) {
@@ -276,11 +276,12 @@ trait WP_Bulk_Mail_Dashboard_Trait {
 		}
 
 		$distribution = array(
-			'sent_mail'          => $stats['sent_mail'],
-			'bounce_mail'        => $stats['bounce_mail'],
-			'wrong_mail_address' => $stats['wrong_mail_address'],
-			'spam_mail'          => $stats['spam_mail'],
-			'mail_cant_send'     => $stats['mail_cant_send'],
+			'sent_mail'                => $stats['sent_mail'],
+			'bounce_mail'              => $stats['bounce_mail'],
+			'wrong_mail_address'       => $stats['wrong_mail_address'],
+			'import_invalid_addresses' => $stats['import_invalid_addresses'],
+			'spam_mail'                => $stats['spam_mail'],
+			'mail_cant_send'           => $stats['mail_cant_send'],
 		);
 
 		$timeline = $this->get_dashboard_timeline( 7 );

@@ -11,18 +11,20 @@ $timeline           = $dashboard_metrics['timeline'];
 $timeline_max       = max( 1, (int) $dashboard_metrics['timeline_max'] );
 $latest_campaign    = $dashboard_metrics['latest_campaign'];
 $segment_colors     = array(
-	'sent_mail'          => '#1f9d55',
-	'bounce_mail'        => '#d97706',
-	'wrong_mail_address' => '#dc2626',
-	'spam_mail'          => '#7c3aed',
-	'mail_cant_send'     => '#2563eb',
+	'sent_mail'                => '#1f9d55',
+	'bounce_mail'              => '#d97706',
+	'wrong_mail_address'       => '#dc2626',
+	'import_invalid_addresses' => '#ea580c',
+	'spam_mail'                => '#7c3aed',
+	'mail_cant_send'           => '#2563eb',
 );
 $distribution_labels = array(
-	'sent_mail'          => __( 'Sent Mail', 'wp-bulk-mail' ),
-	'bounce_mail'        => __( 'Bounce Mail', 'wp-bulk-mail' ),
-	'wrong_mail_address' => __( 'Wrong Mail Address', 'wp-bulk-mail' ),
-	'spam_mail'          => __( 'Spam Mail', 'wp-bulk-mail' ),
-	'mail_cant_send'     => __( "Mail Can't Send", 'wp-bulk-mail' ),
+	'sent_mail'                => __( 'Sent Mail', 'wp-bulk-mail' ),
+	'bounce_mail'              => __( 'Bounce Mail', 'wp-bulk-mail' ),
+	'wrong_mail_address'       => __( 'Wrong Mail Address', 'wp-bulk-mail' ),
+	'import_invalid_addresses' => __( 'Import Invalid', 'wp-bulk-mail' ),
+	'spam_mail'                => __( 'Spam Mail', 'wp-bulk-mail' ),
+	'mail_cant_send'           => __( "Mail Can't Send", 'wp-bulk-mail' ),
 );
 $gradient_parts = array();
 $cursor         = 0;
@@ -49,7 +51,7 @@ $chart_gradient = ! empty( $gradient_parts ) ? implode( ', ', $gradient_parts ) 
 <div class="wrap">
 	<h1><?php esc_html_e( 'Bulk Mail Dashboard', 'wp-bulk-mail' ); ?></h1>
 	<p>
-		<?php esc_html_e( 'Monitor delivery health, queue pressure, invalid addresses, and recent send activity from one clean overview.', 'wp-bulk-mail' ); ?>
+		<?php esc_html_e( 'Monitor queue delivery health, import list quality, and recent send activity from one clean overview.', 'wp-bulk-mail' ); ?>
 	</p>
 
 	<style>
@@ -120,7 +122,7 @@ $chart_gradient = ! empty( $gradient_parts ) ? implode( ', ', $gradient_parts ) 
 
 		.wp-bulk-mail-dashboard-stats {
 			display: grid;
-			grid-template-columns: repeat(6, minmax(0, 1fr));
+			grid-template-columns: repeat(7, minmax(0, 1fr));
 			gap: 16px;
 		}
 
@@ -439,7 +441,12 @@ $chart_gradient = ! empty( $gradient_parts ) ? implode( ', ', $gradient_parts ) 
 			<div class="wp-bulk-mail-dashboard-card">
 				<h3><?php esc_html_e( 'Wrong Mail Address', 'wp-bulk-mail' ); ?></h3>
 				<div class="wp-bulk-mail-dashboard-card-value"><?php echo esc_html( (string) $stats['wrong_mail_address'] ); ?></div>
-				<p><?php esc_html_e( 'Invalid addresses found during import plus invalid-recipient style send failures.', 'wp-bulk-mail' ); ?></p>
+				<p><?php esc_html_e( 'Delivery failures caused by invalid-recipient style SMTP or provider responses.', 'wp-bulk-mail' ); ?></p>
+			</div>
+			<div class="wp-bulk-mail-dashboard-card">
+				<h3><?php esc_html_e( 'Import Invalid', 'wp-bulk-mail' ); ?></h3>
+				<div class="wp-bulk-mail-dashboard-card-value"><?php echo esc_html( (string) $stats['import_invalid_addresses'] ); ?></div>
+				<p><?php esc_html_e( 'Addresses rejected during CSV or TXT import validation before they ever reached the queue.', 'wp-bulk-mail' ); ?></p>
 			</div>
 			<div class="wp-bulk-mail-dashboard-card">
 				<h3><?php esc_html_e( 'Total Send Mail', 'wp-bulk-mail' ); ?></h3>
@@ -457,8 +464,8 @@ $chart_gradient = ! empty( $gradient_parts ) ? implode( ', ', $gradient_parts ) 
 			<div class="wp-bulk-mail-dashboard-card wp-bulk-mail-dashboard-panel">
 				<div class="wp-bulk-mail-dashboard-panel-header">
 					<div>
-						<div class="wp-bulk-mail-dashboard-section-title"><?php esc_html_e( 'Delivery Split', 'wp-bulk-mail' ); ?></div>
-						<p><?php esc_html_e( 'A quick pie-style view of successful delivery versus the most common failure groups.', 'wp-bulk-mail' ); ?></p>
+						<div class="wp-bulk-mail-dashboard-section-title"><?php esc_html_e( 'All-Time Delivery Split', 'wp-bulk-mail' ); ?></div>
+						<p><?php esc_html_e( 'A cumulative view of successful delivery, final send failures, and invalid import addresses.', 'wp-bulk-mail' ); ?></p>
 					</div>
 				</div>
 
@@ -487,8 +494,8 @@ $chart_gradient = ! empty( $gradient_parts ) ? implode( ', ', $gradient_parts ) 
 			<div class="wp-bulk-mail-dashboard-card wp-bulk-mail-dashboard-panel">
 				<div class="wp-bulk-mail-dashboard-panel-header">
 					<div>
-						<div class="wp-bulk-mail-dashboard-section-title"><?php esc_html_e( 'Last 7 Days', 'wp-bulk-mail' ); ?></div>
-						<p><?php esc_html_e( 'Daily queue creation, successful sends, and final failures so you can spot spikes quickly.', 'wp-bulk-mail' ); ?></p>
+						<div class="wp-bulk-mail-dashboard-section-title"><?php esc_html_e( 'Last 7 Days Queue Activity', 'wp-bulk-mail' ); ?></div>
+						<p><?php esc_html_e( 'Daily queue creation, successful sends, and final send failures. Import validation issues are tracked separately above.', 'wp-bulk-mail' ); ?></p>
 					</div>
 				</div>
 
@@ -538,7 +545,7 @@ $chart_gradient = ! empty( $gradient_parts ) ? implode( ', ', $gradient_parts ) 
 				<div class="wp-bulk-mail-dashboard-section-title"><?php esc_html_e( 'Monitoring Note', 'wp-bulk-mail' ); ?></div>
 				<ul>
 					<li><?php esc_html_e( 'Bounce and spam counts are estimated from send-failure messages unless you later connect a provider API or webhook.', 'wp-bulk-mail' ); ?></li>
-					<li><?php esc_html_e( 'Wrong Mail Address includes invalid recipient imports too, so list hygiene problems show up early.', 'wp-bulk-mail' ); ?></li>
+					<li><?php esc_html_e( 'Import Invalid counts bad addresses caught before queueing, while Wrong Mail Address shows send-time recipient failures only.', 'wp-bulk-mail' ); ?></li>
 					<li><?php esc_html_e( 'For deeper delivery analytics later, we can add a dedicated Monitor page with per-campaign breakdowns.', 'wp-bulk-mail' ); ?></li>
 				</ul>
 			</div>
