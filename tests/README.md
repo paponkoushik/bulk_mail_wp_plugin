@@ -27,3 +27,9 @@ php wp-content/plugins/wp-bulk-mail/tests/run.php
 - The runner loads the active WordPress install through `wp-load.php`.
 - Tests create and delete their own records using unique prefixes.
 - Because the suite touches the local database, review before running on a site with live in-progress plugin activity.
+
+## Test Case Document
+
+Detailed workflow coverage is documented here:
+
+`docs/test-case-matrix.md`
