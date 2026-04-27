@@ -8,6 +8,7 @@ $recipient_input_name    = WP_Bulk_Mail_Plugin::COMPOSE_OPTION_KEY . '[recipient
 $selected_recipient_count = count( $selected_recipients );
 $selected_summary_text    = __( 'Select recipients', 'wp-bulk-mail' );
 $template_payload         = array();
+$latest_progress_payload  = is_array( $latest_progress ) ? $latest_progress : null;
 
 foreach ( $stored_templates as $template ) {
 	$template_payload[] = array(
@@ -65,6 +66,58 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 					</span>
 				</div>
 			</section>
+
+			<?php if ( is_array( $latest_progress_payload ) ) : ?>
+				<section class="wp-bulk-mail-admin-card">
+					<div
+						class="wp-bulk-mail-admin-progress"
+						id="wp-bulk-mail-campaign-progress"
+						data-campaign-id="<?php echo esc_attr( (string) $latest_progress_payload['id'] ); ?>"
+						data-progress-nonce="<?php echo esc_attr( wp_create_nonce( 'wp_bulk_mail_campaign_progress' ) ); ?>"
+						data-progress-endpoint="<?php echo esc_url( admin_url( 'admin-ajax.php?action=wp_bulk_mail_campaign_progress' ) ); ?>"
+					>
+						<div class="wp-bulk-mail-admin-progress-meta">
+							<div>
+								<p class="wp-bulk-mail-admin-eyebrow" style="margin-bottom:6px;"><?php esc_html_e( 'Live Queue Progress', 'wp-bulk-mail' ); ?></p>
+								<strong id="wp-bulk-mail-progress-title">
+									<?php
+									echo esc_html(
+										sprintf(
+											/* translators: %d: campaign ID */
+											__( 'Campaign #%d is processing', 'wp-bulk-mail' ),
+											(int) $latest_progress_payload['id']
+										)
+									);
+									?>
+								</strong>
+							</div>
+							<span class="wp-bulk-mail-admin-badge is-accent" id="wp-bulk-mail-progress-status">
+								<?php echo esc_html( ucfirst( (string) $latest_progress_payload['status'] ) ); ?>
+							</span>
+						</div>
+						<div class="wp-bulk-mail-admin-progress-bar" aria-hidden="true">
+							<div class="wp-bulk-mail-admin-progress-fill" id="wp-bulk-mail-progress-fill" style="width:<?php echo esc_attr( (string) $latest_progress_payload['completed_percent'] ); ?>%;"></div>
+						</div>
+						<div class="wp-bulk-mail-admin-progress-meta">
+							<strong id="wp-bulk-mail-progress-percent"><?php echo esc_html( (string) $latest_progress_payload['completed_percent'] ); ?>%</strong>
+							<span class="wp-bulk-mail-admin-copy" id="wp-bulk-mail-progress-summary">
+								<?php
+								echo esc_html(
+									sprintf(
+										/* translators: 1: sent count, 2: processing count, 3: pending count, 4: failed count */
+										__( 'Sent: %1$d, Processing: %2$d, Pending: %3$d, Failed: %4$d', 'wp-bulk-mail' ),
+										(int) $latest_progress_payload['sent_count'],
+										(int) $latest_progress_payload['processing_count'],
+										(int) $latest_progress_payload['pending_count'],
+										(int) $latest_progress_payload['failed_count']
+									)
+								);
+								?>
+							</span>
+						</div>
+					</div>
+				</section>
+			<?php endif; ?>
 
 			<?php if ( is_array( $compose_notice ) && ! empty( $compose_notice['message'] ) ) : ?>
 				<div class="notice notice-<?php echo 'error' === $compose_notice['type'] ? 'error' : 'success'; ?> is-dismissible">
@@ -346,6 +399,7 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 								</button>
 							</div>
 						</div>
+
 					</section>
 				</div>
 			</form>
@@ -369,6 +423,12 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 		var subjectInput = document.querySelector('input[name="<?php echo esc_js( WP_Bulk_Mail_Plugin::COMPOSE_OPTION_KEY ); ?>[subject]"]');
 		var tokenButtons = Array.prototype.slice.call(document.querySelectorAll('[data-insert-token]'));
 		var templateMap = <?php echo wp_json_encode( $template_payload ); ?>;
+		var progressCard = document.getElementById('wp-bulk-mail-campaign-progress');
+		var progressFill = document.getElementById('wp-bulk-mail-progress-fill');
+		var progressPercent = document.getElementById('wp-bulk-mail-progress-percent');
+		var progressSummary = document.getElementById('wp-bulk-mail-progress-summary');
+		var progressStatus = document.getElementById('wp-bulk-mail-progress-status');
+		var progressTitle = document.getElementById('wp-bulk-mail-progress-title');
 		var optionRows = picker ? Array.prototype.slice.call(picker.querySelectorAll('[data-recipient-option]')) : [];
 		var recipientCheckboxes = optionRows.map(function (row) {
 			return row.querySelector('[data-recipient-checkbox]');
@@ -491,6 +551,60 @@ require WP_BULK_MAIL_PATH . 'views/partials/admin-shell-styles.php';
 				}
 			});
 		});
+
+		if (progressCard && progressFill && progressPercent && progressSummary && progressStatus) {
+			var progressEndpoint = progressCard.getAttribute('data-progress-endpoint') || '';
+			var progressNonce = progressCard.getAttribute('data-progress-nonce') || '';
+			var progressCampaignId = parseInt(progressCard.getAttribute('data-campaign-id') || '0', 10);
+
+			var renderProgress = function (snapshot) {
+				var percent = parseInt(snapshot.completed_percent || 0, 10);
+				var status = (snapshot.status || 'processing').toString();
+				var statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
+
+				progressFill.style.width = percent + '%';
+				progressPercent.textContent = percent + '%';
+				progressStatus.textContent = statusLabel;
+				progressStatus.className = 'wp-bulk-mail-admin-badge ' + (snapshot.is_finished ? (parseInt(snapshot.failed_count || 0, 10) > 0 ? 'is-warning' : 'is-success') : 'is-accent');
+				progressSummary.textContent =
+					'Sent: ' + parseInt(snapshot.sent_count || 0, 10) +
+					', Processing: ' + parseInt(snapshot.processing_count || 0, 10) +
+					', Pending: ' + parseInt(snapshot.pending_count || 0, 10) +
+					', Failed: ' + parseInt(snapshot.failed_count || 0, 10);
+
+				if (progressTitle) {
+					progressTitle.textContent = 'Campaign #' + parseInt(snapshot.id || progressCampaignId, 10) + ' is ' + statusLabel.toLowerCase();
+				}
+
+				return !!snapshot.is_finished;
+			};
+
+			var pollProgress = function () {
+				if (!progressEndpoint || progressCampaignId < 1) {
+					return;
+				}
+
+				var url = progressEndpoint + '&campaign_id=' + encodeURIComponent(progressCampaignId) + '&nonce=' + encodeURIComponent(progressNonce);
+
+				window.fetch(url, {
+					credentials: 'same-origin'
+				}).then(function (response) {
+					return response.json();
+				}).then(function (payload) {
+					if (!payload || !payload.success || !payload.data) {
+						return;
+					}
+
+					if (!renderProgress(payload.data)) {
+						window.setTimeout(pollProgress, 4000);
+					}
+				}).catch(function () {
+					window.setTimeout(pollProgress, 6000);
+				});
+			};
+
+			pollProgress();
+		}
 
 		if (!picker || !trigger || !panel || !searchInput || !summary || !badge || !hint || !selectAll || !clearButton || !recipientCheckboxes.length) {
 			return;

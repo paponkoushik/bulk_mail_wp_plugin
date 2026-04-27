@@ -334,7 +334,7 @@ trait WP_Bulk_Mail_Storage_Trait {
 	 * @return array[]
 	 */
 	private static function get_default_template_definitions() {
-		$logo_block = "<p style=\"margin:0 0 18px;\"><img src=\"{{company_logo_url}}\" alt=\"{{site_name}}\" style=\"max-width:180px;height:auto;display:block;\" /></p>";
+		$logo_block = "<p style=\"margin:0 0 18px;\"><img src=\"{{company_logo_url}}\" alt=\"Company Logo\" style=\"max-width:180px;height:auto;display:block;\" /></p>";
 
 		return array(
 			array(

@@ -152,6 +152,7 @@ class WP_Bulk_Mail_Plugin {
 		add_action( 'admin_post_wp_bulk_mail_save_template', array( $this, 'handle_save_template' ) );
 		add_action( 'admin_post_wp_bulk_mail_delete_template', array( $this, 'handle_delete_template' ) );
 		add_action( 'admin_post_wp_bulk_mail_save_campaign', array( $this, 'handle_save_campaign' ) );
+		add_action( 'wp_ajax_wp_bulk_mail_campaign_progress', array( $this, 'handle_campaign_progress_request' ) );
 		add_action( 'admin_post_wp_bulk_mail_retry_failed_item', array( $this, 'handle_retry_failed_item' ) );
 		add_action( 'admin_post_wp_bulk_mail_retry_failed_campaign', array( $this, 'handle_retry_failed_campaign' ) );
 		add_action( 'admin_post_wp_bulk_mail_retry_all_failed', array( $this, 'handle_retry_all_failed' ) );

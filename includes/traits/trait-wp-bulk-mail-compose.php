@@ -175,6 +175,7 @@ trait WP_Bulk_Mail_Compose_Trait {
 		$selected_recipients = $this->get_recipients_by_ids( $compose_draft['recipient_ids'] );
 		$stored_templates    = $this->get_all_templates();
 		$template_tokens     = $this->get_template_tokens();
+		$latest_progress     = ! empty( $queue_overview['latest_campaign']['id'] ) ? $this->get_campaign_progress_snapshot( (int) $queue_overview['latest_campaign']['id'] ) : null;
 
 		require WP_BULK_MAIL_PATH . 'views/compose-page.php';
 	}

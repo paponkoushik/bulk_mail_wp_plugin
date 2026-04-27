@@ -302,6 +302,87 @@ trait WP_Bulk_Mail_Queue_Trait {
 	}
 
 	/**
+	 * Build one progress snapshot for a queued campaign.
+	 *
+	 * @param int $campaign_id Campaign ID.
+	 * @return array|null
+	 */
+	public function get_campaign_progress_snapshot( $campaign_id ) {
+		$campaign_id = absint( $campaign_id );
+		$campaign    = $this->get_campaign_by_id( $campaign_id );
+
+		if ( ! is_array( $campaign ) ) {
+			return null;
+		}
+
+		$total      = max( 0, (int) $campaign['total_recipients'] );
+		$pending    = max( 0, (int) $campaign['pending_count'] );
+		$sent       = max( 0, (int) $campaign['sent_count'] );
+		$failed     = max( 0, (int) $campaign['failed_count'] );
+		$processing = max( 0, $total - ( $pending + $sent + $failed ) );
+		$open_count = max( 0, $pending + $processing );
+		$done_count = min( $total, max( 0, $sent + $failed ) );
+		$percent    = $total > 0 ? (int) round( ( $done_count / $total ) * 100 ) : 0;
+		$status     = (string) $campaign['status'];
+
+		if ( $total > 0 && $sent >= $total ) {
+			$status = 'completed';
+		} elseif ( $open_count > 0 ) {
+			$status = 'processing';
+		} elseif ( $failed > 0 ) {
+			$status = 'partial';
+		}
+
+		return array(
+			'id'                => $campaign_id,
+			'name'              => (string) $campaign['name'],
+			'status'            => $status,
+			'send_type'         => (string) $campaign['send_type'],
+			'total_recipients'  => $total,
+			'pending_count'     => $pending,
+			'processing_count'  => $processing,
+			'sent_count'        => $sent,
+			'failed_count'      => $failed,
+			'completed_percent' => $percent,
+			'is_finished'       => $open_count < 1,
+			'last_processed_at' => isset( $campaign['last_processed_at'] ) ? $campaign['last_processed_at'] : null,
+			'updated_at'        => isset( $campaign['updated_at'] ) ? $campaign['updated_at'] : null,
+		);
+	}
+
+	/**
+	 * Return JSON progress data for one campaign.
+	 *
+	 * @return void
+	 */
+	public function handle_campaign_progress_request() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error(
+				array(
+					'message' => __( 'You are not allowed to view this campaign progress.', 'wp-bulk-mail' ),
+				),
+				403
+			);
+		}
+
+		check_ajax_referer( 'wp_bulk_mail_campaign_progress', 'nonce' );
+
+		$campaign_id = isset( $_GET['campaign_id'] ) ? absint( $_GET['campaign_id'] ) : 0;
+		$snapshot    = $this->get_campaign_progress_snapshot( $campaign_id );
+
+		if ( ! is_array( $snapshot ) ) {
+			wp_send_json_error(
+				array(
+					'message' => __( 'Campaign progress could not be found.', 'wp-bulk-mail' ),
+				),
+				404
+			);
+		}
+
+		wp_send_json_success( $snapshot );
+	}
+
+	/**
 	 * Queue recipients for an existing campaign.
 	 *
 	 * @param int     $campaign_id Campaign ID.

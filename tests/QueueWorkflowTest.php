@@ -100,4 +100,76 @@ class QueueWorkflowTest extends WPBM_TestCase {
 			$this->deleteCampaignTree( $campaign_id );
 		}
 	}
+
+	public function testCampaignProgressSnapshotMarksOpenImmediateRetryAsProcessing(): void {
+		$wpdb        = $this->getWpdb();
+		$campaign_id = 0;
+
+		try {
+			$wpdb->insert(
+				WP_Bulk_Mail_Plugin::get_campaigns_table_name(),
+				array(
+					'name'             => $this->uniqueToken( 'campaign' ),
+					'subject'          => 'Immediate progress snapshot',
+					'body'             => '<p>Body</p>',
+					'template_id'      => 0,
+					'driver'           => 'wordpress',
+					'status'           => 'processing',
+					'send_type'        => 'immediate',
+					'created_by'       => get_current_user_id(),
+					'total_recipients' => 10,
+					'pending_count'    => 7,
+					'sent_count'       => 2,
+					'failed_count'     => 0,
+				),
+				array( '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%d', '%d', '%d', '%d' )
+			);
+
+			$campaign_id = (int) $wpdb->insert_id;
+			$snapshot    = $this->plugin->get_campaign_progress_snapshot( $campaign_id );
+
+			$this->assertSame( 'processing', $snapshot['status'] );
+			$this->assertSame( 10, $snapshot['total_recipients'] );
+			$this->assertSame( 2, $snapshot['sent_count'] );
+			$this->assertSame( 1, $snapshot['processing_count'] );
+			$this->assertSame( 20, $snapshot['completed_percent'] );
+		} finally {
+			$this->deleteCampaignTree( $campaign_id );
+		}
+	}
+
+	public function testCampaignProgressSnapshotMarksAllSentCampaignAsCompleted(): void {
+		$wpdb        = $this->getWpdb();
+		$campaign_id = 0;
+
+		try {
+			$wpdb->insert(
+				WP_Bulk_Mail_Plugin::get_campaigns_table_name(),
+				array(
+					'name'             => $this->uniqueToken( 'campaign' ),
+					'subject'          => 'Completed progress snapshot',
+					'body'             => '<p>Body</p>',
+					'template_id'      => 0,
+					'driver'           => 'wordpress',
+					'status'           => 'completed',
+					'send_type'        => 'immediate',
+					'created_by'       => get_current_user_id(),
+					'total_recipients' => 4,
+					'pending_count'    => 0,
+					'sent_count'       => 4,
+					'failed_count'     => 0,
+				),
+				array( '%s', '%s', '%s', '%d', '%s', '%s', '%s', '%d', '%d', '%d', '%d' )
+			);
+
+			$campaign_id = (int) $wpdb->insert_id;
+			$snapshot    = $this->plugin->get_campaign_progress_snapshot( $campaign_id );
+
+			$this->assertSame( 'completed', $snapshot['status'] );
+			$this->assertSame( 100, $snapshot['completed_percent'] );
+			$this->assertTrue( $snapshot['is_finished'] );
+		} finally {
+			$this->deleteCampaignTree( $campaign_id );
+		}
+	}
 }

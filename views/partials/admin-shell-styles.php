@@ -220,6 +220,40 @@ define( 'WP_BULK_MAIL_ADMIN_SHELL_STYLES_LOADED', true );
 		color: var(--wbm-muted);
 	}
 
+	.wp-bulk-mail-admin-progress {
+		display: grid;
+		gap: 14px;
+	}
+
+	.wp-bulk-mail-admin-progress-bar {
+		position: relative;
+		height: 14px;
+		border-radius: 999px;
+		background: #e9f0f8;
+		overflow: hidden;
+	}
+
+	.wp-bulk-mail-admin-progress-fill {
+		position: absolute;
+		inset: 0 auto 0 0;
+		width: 0;
+		border-radius: 999px;
+		background: linear-gradient(90deg, #2563eb 0%, #0ea5e9 100%);
+		transition: width 0.3s ease;
+	}
+
+	.wp-bulk-mail-admin-progress-meta {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+	}
+
+	.wp-bulk-mail-admin-progress-meta strong {
+		font-size: 14px;
+	}
+
 	.wp-bulk-mail-admin-status-list {
 		display: grid;
 		gap: 10px;
